@@ -67,8 +67,8 @@ Renderable.prototype.addQuad = function() {
 
 
 
-   var test_sphere = twgl.primitives.createSphereVertices(1,256,256);
-  //var test_sphere = twgl.primitives.createCubeVertices(1);
+  // var test_sphere = twgl.primitives.createSphereVertices(1,256,256);
+  var test_sphere = twgl.primitives.createCubeVertices(1);
   var base_quad = test_sphere.position;
   var base_quad_indices = test_sphere.indices;
   var base_quad_normals = test_sphere.normal;
@@ -104,6 +104,7 @@ Renderable.prototype.render = function() {
   this.setCustomUniforms();
   mat4.identity(this.model);
   mat4.translate(this.model, this.model, [Math.sin(this.inc)*5,0,Math.cos(this.inc)*5]);
+  mat4.rotate(this.model, this.model, this.inc, [0,1,0]);
   gl.drawElements(gl.TRIANGLES, this.offset, gl.UNSIGNED_SHORT, 0);
   this.ext.bindVertexArrayOES(null);
 };
@@ -259,7 +260,7 @@ Thomas.prototype.render = function() {
 var county = 0;
 Thomas.prototype.setView = function() {
 	county+=0.05;
-	var camX = 10;
+	var camX = -10;
 	var camY = 5;
 	var camZ = 10;
 

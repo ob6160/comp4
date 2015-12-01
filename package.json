@@ -7,8 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "watchify lib/main.js -o public/bundle.js & http-server"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Oliver barnwell",
+  "license": "MIT",
   "dependencies": {
     "gl-matrix": "^2.3.1"
   }

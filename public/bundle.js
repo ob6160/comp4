@@ -1,39 +1,10 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var heights = [
-  [1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1],
-  [1,1,2,1,1,1,1,1],
-  [1,1,1,1,1.5,1,1,1],
-  [1,1,1,2,1,1,1,1],
-  [1,1,1,1,1,1,1,1],
-  [1,1,1,1,2,1,1,1],
-  [1,1,1,1,1,2,1,1],
-
-
-]
-
-
-
-module.exports = heights;
-
-},{}],2:[function(require,module,exports){
-var thomas = require("./thomas");
-var game = new thomas();
-game.setup("c");
-game.render();
-
-},{"./thomas":5}],3:[function(require,module,exports){
 var twgl = window.twgl;
 var mat4 = require('gl-matrix').mat4;
 var vec3 = require('gl-matrix').vec3;
 
-function Renderable(gl, programwrap) {
+function Entity(gl, programwrap) {
   this.gl = gl;
-  this.vertexBuffer = null;
-  this.indexBuffer = null;
-  this.vertexNormalBuffer = null;
-
-  this.vao = null;
 
   this.model = mat4.create();
   this.inc = 0;
@@ -41,102 +12,90 @@ function Renderable(gl, programwrap) {
   this.program = programwrap.program;
   this.programwrap = programwrap;
 
-  this.offset = 0;
+  this.uniforms = {
+    model: this.model
+  };
+
+};
+
+Entity.prototype.bindMesh = function(mesh) {
+  this.mesh = mesh;
+};
+
+Entity.prototype.render = function() {
+  mat4.identity(this.model, this.model);
+  this.inc+=0.01
+  mat4.rotate(this.model, this.model, this.inc, [0,1,0]);
+  this.mesh.render();
+};
+
+Entity.prototype.applyCustomUniforms = function(customUniforms) {
+  for (var i = 0; i < customUniforms.length; i++) {
+    this.uniforms[customUniforms[i][0]] = customUniforms[i][1];
+  };
+};
+
+Entity.prototype.setCustomUniforms = function() {
+  //Set uniforms
+  twgl.setUniforms(this.programwrap, this.uniforms);
+};
+
+module.exports = Entity;
+
+},{"gl-matrix":6}],2:[function(require,module,exports){
+var thomas = require("./thomas");
+var game = new thomas();
+game.setup("c");
+game.render();
+
+},{"./thomas":4}],3:[function(require,module,exports){
+function Mesh(gl, program, vertices, indices, normals) {
+  this.vertices = vertices;
+  this.indices = indices;
+  this.normals = normals;
+
+  this.vertexBuffer = null;
+  this.indexBuffer = null;
+  this.vertexNormalBuffer = null;
+
+  this.programWrap = program;
+  this.program =this.programWrap.program;
+
+  this.attribs = {
+    a_position: gl.getAttribLocation(this.program, 'a_position'),
+    a_normal: gl.getAttribLocation(this.program, 'a_normal')
+  }
+
+  this.vao = null;
 
   //Access VAO extension
   this.ext = gl.getExtension("OES_vertex_array_object");
   //Check for 32bit index array support
   this.index32Bit = gl.getExtension("OES_element_index_uint");
 
-  this.uniforms = {
-    model: this.model
-  };
+  this.gl = gl;
 
-  this.attribs = {
-    a_position: gl.getAttribLocation(this.program, 'a_position'),
-    a_normal: gl.getAttribLocation(this.program, 'a_normal'),
-    vertices: [],
-    indices: [],
-    normals: []
-  };
-};
+  this.construct(this.gl);
+}
 
-Renderable.prototype.addVertex = function(x, y, z) {
-  this.attribs.vertices.push(x);
-  this.attribs.vertices.push(y);
-  this.attribs.vertices.push(z);
-};
-
-Renderable.prototype.addNormal = function(x, y, z) {
-  this.attribs.normals.push(x);
-  this.attribs.normals.push(y);
-  this.attribs.normals.push(z);
-};
-
-Renderable.prototype.addIndices = function(indices) {
-  for(var i = 0; i < indices.length; i++) {
-    this.attribs.indices.push(indices[i]);
-  };
-
-  this.offset += indices.length;
-};
-
-Renderable.prototype.addQuad = function() {
-  var test_cube = twgl.primitives.createCubeVertices(1);
-  var base_quad = test_cube.position;
-  var base_quad_indices = test_cube.indices;
-  var base_quad_normals = test_cube.normal;
-
-  for (var i = 0; i < base_quad_indices.length; i++) {
-    this.attribs.indices.push(base_quad_indices[i]);
-  };
-
-  for (var i = 0; i < base_quad.length; i++) {
-    this.attribs.vertices.push(base_quad[i]);
-  };
-
-  for (var i = 0; i < base_quad_normals.length; i++) {
-    this.attribs.normals.push(base_quad_normals[i]);
-  }
-
-  this.offset += base_quad_indices.length;
-};
-
-Renderable.prototype.bind = function() {
-  this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
-};
-
-Renderable.prototype.render = function() {
+Mesh.prototype.render = function() {
   var gl = this.gl;
   gl.useProgram(this.program);
 
   //Render
   this.ext.bindVertexArrayOES(this.vao);
-    mat4.identity(this.model);
-    mat4.rotateY(this.model, this.model, this.inc+=0.01)
-    if(this.index32Bit) {
-        gl.drawElements(gl.TRIANGLES, this.offset, gl.UNSIGNED_INT, 0);
-    } else {
-        gl.drawElements(gl.TRIANGLES, this.offset, gl.UNSIGNED_SHORT, 0);
-    };
+  if (this.index32Bit) {
+    gl.drawElements(gl.TRIANGLES, this.indices.length, gl.UNSIGNED_INT, 0);
+  } else {
+    gl.drawElements(gl.TRIANGLES, this.indices.length, gl.UNSIGNED_SHORT, 0);
+  };
 
   this.ext.bindVertexArrayOES(null);
 };
 
-Renderable.prototype.applyCustomUniforms = function(customUniforms) {
-  for (var i = 0; i < customUniforms.length; i++) {
-    this.uniforms[customUniforms[i][0]] = customUniforms[i][1];
-  };
-};
-
-Renderable.prototype.setCustomUniforms = function() {
-  //Set uniforms
-  twgl.setUniforms(this.programwrap, this.uniforms);
-};
-
-Renderable.prototype.initBuffers = function(gl) {
+Mesh.prototype.construct = function(gl) {
   //Bind vertex information to vertices buffer.
-  var vertices = new Float32Array(this.attribs["vertices"]);
+  var vertices = new Float32Array(this.vertices);
 
   //Bind program
   gl.useProgram(this.program);
@@ -147,7 +106,7 @@ Renderable.prototype.initBuffers = function(gl) {
   //Setup normal buffer
   this.vertexNormalBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexNormalBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.attribs.normals), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.normals), gl.STATIC_DRAW);
 
   //Setup normal attributes
   gl.enableVertexAttribArray(this.attribs.a_normal);
@@ -165,10 +124,10 @@ Renderable.prototype.initBuffers = function(gl) {
   //Setup index buffer
   this.indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
-  if(this.index32Bit) {
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(this.attribs["indices"]), gl.STATIC_DRAW);
+  if (this.index32Bit) {
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(this.indices), gl.STATIC_DRAW);
   } else {
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.attribs["indices"]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.indices), gl.STATIC_DRAW);
   }
 
 
@@ -179,83 +138,61 @@ Renderable.prototype.initBuffers = function(gl) {
   //Unbind index and vertex buffers
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-};
-
-
-module.exports = Renderable;
-
-},{"gl-matrix":7}],4:[function(require,module,exports){
-var renderable = require("./renderable.js");
-
-
-//heightmap optional
-function Terrain(width, height, heightmap) {
-  this.width = width;
-  this.height = height;
-
-  this.renderable = null;
-  this.heightmap = heightmap || null;
-
-  //Asume it's a square for now
-  if(this.heightmap) {
-    this.width = this.heightmap.length;
-    this.height = this.heightmap[0].length;
-  };
 
 };
 
-Terrain.prototype.constructBuffers = function(gl) {
-  for(var j = 0; j < this.width; j++) {
-    for(var i = 0; i < this.height; i++) {
-        //*0.5 to centre
-        this.renderable.addVertex(i - (this.width - 1) / 2, this.heightmap[this.height-1-j][i], j - (this.height - 1) / 2);
-        this.renderable.addNormal(0,1,0);
-    };
-  };
+module.exports = Mesh;
 
-  //6 indices for each item in the array
-  var indices = new Array(3 * 2 * (this.width - 1) * (this.height - 1));
-	var vertIndex = 0;
+//
+// Renderable.prototype.addVertex = function(x, y, z) {
+//   this.attribs.vertices.push(x);
+//   this.attribs.vertices.push(y);
+//   this.attribs.vertices.push(z);
+// };
+//
+// Renderable.prototype.addNormal = function(x, y, z) {
+//   this.attribs.normals.push(x);
+//   this.attribs.normals.push(y);
+//   this.attribs.normals.push(z);
+// };
+//
+// Renderable.prototype.addIndices = function(indices) {
+//   for(var i = 0; i < indices.length; i++) {
+//     this.attribs.indices.push(indices[i]);
+//   };
+//
+//   this.offset += indices.length;
+// };
+//
+// Renderable.prototype.addQuad = function() {
+//   var test_cube = twgl.primitives.createCubeVertices(1);
+//   var base_quad = test_cube.position;
+//   var base_quad_indices = test_cube.indices;
+//   var base_quad_normals = test_cube.normal;
+//
+//   for (var i = 0; i < base_quad_indices.length; i++) {
+//     this.attribs.indices.push(base_quad_indices[i]);
+//   };
+//
+//   for (var i = 0; i < base_quad.length; i++) {
+//     this.attribs.vertices.push(base_quad[i]);
+//   };
+//
+//   for (var i = 0; i < base_quad_normals.length; i++) {
+//     this.attribs.normals.push(base_quad_normals[i]);
+//   }
+//
+//   this.offset += base_quad_indices.length;
+// };
 
-	for (var i = 0; i < this.height - 1; i++) {
-		for (var j = 0; j < this.width - 1; j++) {
-			var t = j + i * this.width;
-			indices[vertIndex++] = (t + this.width + 1);
-			indices[vertIndex++] = (t + 1);
-			indices[vertIndex++] = t;
-			indices[vertIndex++] = (t + this.width);
-			indices[vertIndex++] = (t + this.width + 1);
-			indices[vertIndex++] = t;
-		};
-	};
-
-  this.renderable.addIndices(indices);
-
-  this.finalizeBuffers(gl);
-};
-
-Terrain.prototype.finalizeBuffers = function(gl) {
-  this.renderable.initBuffers(gl);
-  this.renderable.setCustomUniforms();
-};
-
-Terrain.prototype.bindRenderable = function(gl, programWrap) {
-  this.renderable = new renderable(gl, programWrap);
-};
-
-
-
-module.exports = Terrain;
-
-},{"./renderable.js":3}],5:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 var twgl = window.twgl;
 var mat4 = require('gl-matrix').mat4;
 var vec3 = require('gl-matrix').vec3;
 var vec2 = require("./vector2d.js");
-var renderable = require("./renderable.js");
+var Entity = require("./entity.js");
+var Mesh = require("./mesh.js");
 
-var heightmap = require("./heightmap_1.js");
-var terrain = require("./terrain.js");
 
 function Thomas() {
 	this.gl = null;
@@ -268,7 +205,8 @@ function Thomas() {
 };
 
 
-var testTerrain = null;
+var testEntity = null;
+var testMesh = null;
 //Creates a WebGL context bound to specified canvas id
 //canvas_id: id of canvas to be used
 Thomas.prototype.setup = function(canvas_id) {
@@ -283,19 +221,12 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.setUniforms();
 		this.clearContext(0);
 
-		var hite = [];
-		for(var x = 0; x < 200; x++) {
-			hite[x] = [];
-			for(var y = 0; y < 200; y++) {
-				hite[x][y] = Math.sin(x) * 100;
-			}
-		}
+		var sphere = twgl.primitives.createCubeVertices(1);
+		testMesh = new Mesh(this.gl, this.programs["default"], sphere.position, sphere.indices, sphere.normal);
 
-	//	testTerrain = new terrain(null,null,hite);
-		testTerrain = new terrain(0,0,heightmap);
-		testTerrain.bindRenderable(this.gl, this.programs["default"]);
-		testTerrain.constructBuffers(this.gl);
-		console.log(testTerrain);
+		testEntity = new Entity(this.gl, this.programs["default"]);
+		testEntity.bindMesh(testMesh);
+
 
 		return [null, this.gl];
 	} else {
@@ -336,9 +267,8 @@ Thomas.prototype.setupPrograms = function() {
 Thomas.prototype.render = function() {
 	this.clearContext();
 
-	testTerrain.renderable.setCustomUniforms();
-	testTerrain.renderable.render();
-
+	testEntity.render();
+	testEntity.setCustomUniforms();
 	requestAnimationFrame(this.render.bind(this));
 }
 
@@ -377,7 +307,7 @@ Thomas.prototype.setupScene = function() {
 
 module.exports = Thomas;
 
-},{"./heightmap_1.js":1,"./renderable.js":3,"./terrain.js":4,"./vector2d.js":6,"gl-matrix":7}],6:[function(require,module,exports){
+},{"./entity.js":1,"./mesh.js":3,"./vector2d.js":5,"gl-matrix":6}],5:[function(require,module,exports){
 function vec2(x, y) {
     this.x = x;
     this.y = y;
@@ -434,7 +364,7 @@ vec2.prototype.distance = function(vec) {
 };
 
 module.exports = vec2;
-},{}],7:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 /**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
@@ -472,7 +402,7 @@ exports.quat = require("./gl-matrix/quat.js");
 exports.vec2 = require("./gl-matrix/vec2.js");
 exports.vec3 = require("./gl-matrix/vec3.js");
 exports.vec4 = require("./gl-matrix/vec4.js");
-},{"./gl-matrix/common.js":8,"./gl-matrix/mat2.js":9,"./gl-matrix/mat2d.js":10,"./gl-matrix/mat3.js":11,"./gl-matrix/mat4.js":12,"./gl-matrix/quat.js":13,"./gl-matrix/vec2.js":14,"./gl-matrix/vec3.js":15,"./gl-matrix/vec4.js":16}],8:[function(require,module,exports){
+},{"./gl-matrix/common.js":7,"./gl-matrix/mat2.js":8,"./gl-matrix/mat2d.js":9,"./gl-matrix/mat3.js":10,"./gl-matrix/mat4.js":11,"./gl-matrix/quat.js":12,"./gl-matrix/vec2.js":13,"./gl-matrix/vec3.js":14,"./gl-matrix/vec4.js":15}],7:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -526,7 +456,7 @@ glMatrix.toRadian = function(a){
 
 module.exports = glMatrix;
 
-},{}],9:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -830,7 +760,7 @@ mat2.LDU = function (L, D, U, a) {
 
 module.exports = mat2;
 
-},{"./common.js":8}],10:[function(require,module,exports){
+},{"./common.js":7}],9:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1149,7 +1079,7 @@ mat2d.frob = function (a) {
 
 module.exports = mat2d;
 
-},{"./common.js":8}],11:[function(require,module,exports){
+},{"./common.js":7}],10:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -1716,7 +1646,7 @@ mat3.frob = function (a) {
 
 module.exports = mat3;
 
-},{"./common.js":8}],12:[function(require,module,exports){
+},{"./common.js":7}],11:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -3001,7 +2931,7 @@ mat4.frob = function (a) {
 
 module.exports = mat4;
 
-},{"./common.js":8}],13:[function(require,module,exports){
+},{"./common.js":7}],12:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -3556,7 +3486,7 @@ quat.str = function (a) {
 
 module.exports = quat;
 
-},{"./common.js":8,"./mat3.js":11,"./vec3.js":15,"./vec4.js":16}],14:[function(require,module,exports){
+},{"./common.js":7,"./mat3.js":10,"./vec3.js":14,"./vec4.js":15}],13:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -4081,7 +4011,7 @@ vec2.str = function (a) {
 
 module.exports = vec2;
 
-},{"./common.js":8}],15:[function(require,module,exports){
+},{"./common.js":7}],14:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -4792,7 +4722,7 @@ vec3.str = function (a) {
 
 module.exports = vec3;
 
-},{"./common.js":8}],16:[function(require,module,exports){
+},{"./common.js":7}],15:[function(require,module,exports){
 /* Copyright (c) 2015, Brandon Jones, Colin MacKenzie IV.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -5331,4 +5261,4 @@ vec4.str = function (a) {
 
 module.exports = vec4;
 
-},{"./common.js":8}]},{},[2]);
+},{"./common.js":7}]},{},[2]);

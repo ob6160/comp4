@@ -9,14 +9,27 @@ function Entity(position, dimensions) {
 
 };
 
+Entity.prototype.update = function() {
+
+};
+
+Entity.prototype.render = function() {
+	this.renderable.setCustomUniforms();
+	this.renderable.render();
+};
+
 Entity.prototype.finalizeBuffers = function(gl) {
   this.renderable.initBuffers(gl);
   this.renderable.setCustomUniforms();
 };
 
 //Create a new instance of Renderable with the supplied gl context + program
-Entity.prototype.bindRenderable = function(gl, programWrap) {
+Entity.prototype.createRenderable = function(gl, programWrap) {
   this.renderable = new renderable(gl, programWrap);
+};
+
+Entity.prototype.bindRenderable = function(renderable) {
+  this.renderable = renderable;
 };
 
 
@@ -43,6 +56,8 @@ function Renderable(gl, programwrap) {
   this.vao = null;
 
   this.model = mat4.create();
+  this.texture = 0;
+
   this.inc = 0;
 
   this.program = programwrap.program;
@@ -56,15 +71,18 @@ function Renderable(gl, programwrap) {
   this.index32Bit = gl.getExtension("OES_element_index_uint");
 
   this.uniforms = {
-    model: this.model
+    model: this.model,
+    tex: this.texture
   };
 
   this.attribs = {
     a_position: gl.getAttribLocation(this.program, 'a_position'),
     a_normal: gl.getAttribLocation(this.program, 'a_normal'),
+    a_texcoord: gl.getAttribLocation(this.program, 'a_texcoord'),
     vertices: [],
     indices: [],
-    normals: []
+    normals: [],
+    texcoord: []
   };
 };
 
@@ -72,6 +90,11 @@ Renderable.prototype.addVertex = function(x, y, z) {
   this.attribs.vertices.push(x);
   this.attribs.vertices.push(y);
   this.attribs.vertices.push(z);
+};
+
+Renderable.prototype.addTexCoord = function(i, j) {
+  this.attribs.texcoord.push(i);
+  this.attribs.texcoord.push(j);
 };
 
 Renderable.prototype.addNormal = function(x, y, z) {
@@ -92,20 +115,21 @@ Renderable.prototype.addPrimitive = function(primitive) {
     var base_verts = primitive.position;
     var base_indices = primitive.indices;
     var base_normals = primitive.normal;
+    var base_texcoord = primitive.texcoord;
 
-    for (var i = 0; i < base_indices.length; i++) {
-      this.attribs.indices.push(base_indices[i]);
+    this.addIndices(base_indices);
+
+    for (var i = 0; i < base_verts.length; i += 3) {
+      this.addVertex(base_verts[i], base_verts[i+1], base_verts[i+2]);
     };
 
-    for (var i = 0; i < base_verts.length; i++) {
-      this.attribs.vertices.push(base_verts[i]);
+    for (var i = 0; i < base_normals.length; i += 3) {
+      this.addNormal(base_normals[i], base_normals[i+1], base_normals[i+2]);
     };
 
-    for (var i = 0; i < base_normals.length; i++) {
-      this.attribs.normals.push(base_normals[i]);
-    }
-
-    this.offset += base_indices.length;
+    for (var i = 0; i < base_texcoord.length; i += 2) {
+      this.addTexCoord(base_texcoord[i], base_texcoord[i+1]);
+    };
 };
 
 Renderable.prototype.addQuad = function() {
@@ -197,6 +221,17 @@ Renderable.prototype.initBuffers = function(gl) {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.attribs["indices"]), gl.STATIC_DRAW);
   };
 
+  //Setup texture buffer
+  this.texBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.texBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.attribs["texcoord"]), gl.STATIC_DRAW);
+
+  //Setup texture attributes
+  gl.enableVertexAttribArray(this.attribs.a_texcoord);
+  gl.vertexAttribPointer(this.attribs.a_texcoord, 2, gl.FLOAT, false, 0, 0);
+
+
+
   //Unbind VAO
   this.ext.bindVertexArrayOES(null);
 
@@ -223,7 +258,7 @@ function Thomas() {
 	this.viewMatrix = mat4.create();
 	this.projectionMatrix = mat4.create();
 
-  this.FSIZE = new Float32Array().BYTES_PER_ELEMENT;
+  	this.FSIZE = new Float32Array().BYTES_PER_ELEMENT;
 };
 
 
@@ -236,31 +271,35 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.gl = twgl.getWebGLContext(document.getElementById("c"));
 		twgl.resizeCanvasToDisplaySize(this.gl.canvas);
 
+		this.textures = {};
+
 		this.setProjection();
 		this.setView();
 
 		this.setupPrograms();
 		this.setUniforms();
+		this.loadTextures();
+
 		this.clearContext(0);
 
 		//TODO: make separate buffer class
-	  mainPlanet = new Entity(new vec2(0.0, 0.0, new vec2(100.0, 100.0)));
+	  	mainPlanet = new Entity(new vec2(0.0, 0.0, new vec2(100.0, 100.0)));
 
-		mainPlanet.bindRenderable(this.gl, this.programs["default"])
-		mainPlanet.renderable.addPrimitive(twgl.primitives.createSphereVertices(2.0, 4.0, 4.0));
+		mainPlanet.createRenderable(this.gl, this.programs["default"])
+		mainPlanet.renderable.addPrimitive(twgl.primitives.createSphereVertices(1.0, 32.0, 32.0));
+		
+		mainPlanet.renderable.applyCustomUniforms([
+			["tex", this.textures.earth]
+		]);
+	
+		mainPlanet.renderable.setCustomUniforms();
 		mainPlanet.finalizeBuffers(this.gl);
 
-		console.log(mainPlanet);
-		for(var i = 0; i < 10000; i++) {
-			var testEntity = new Entity(new vec2(0.0, 0.0), new vec2(100.0, 100.0));
-			testEntity.bindRenderable(this.gl, this.programs["default"]);
-			testEntity.renderable.vao = mainPlanet.renderable.vao;
-			testEntity.renderable.offset = mainPlanet.renderable.offset;
-			testEntity.renderable.setCustomUniforms();
-			testEntity.vel = new vec2(Math.random()*10, Math.random()*10);
+		for(var i = 0; i < 10; i++) {
+			var testEntity = new Entity(new vec2(0, 0), new vec2(100.0, 100.0));
+			testEntity.bindRenderable(mainPlanet.renderable);
 			entities.push(testEntity);
 		}
-
 
 
 		return [null, this.gl];
@@ -271,27 +310,40 @@ Thomas.prototype.setup = function(canvas_id) {
 
 Thomas.prototype.setOrtho = function() {
   var aspect = this.gl.canvas.width / this.gl.canvas.height;
-  mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 100);
+  mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000000);
 };
 
 Thomas.prototype.setProjection = function() {
 	var aspect = this.gl.canvas.width / this.gl.canvas.height;
 	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 0.5, 100000000);
+};
+
+Thomas.prototype.loadTextures = function() {
+	var gl = this.gl;
+	this.textures = twgl.createTextures(gl, {
+		earth: {
+			src: "images/earth.jpg",
+			mag: gl.NEAREST
+		},
+		earthnight: {
+			src: "images/earth_at_night.jpg",
+			mag: gl.NEAREST
+		}
+	});
 }
 
 Thomas.prototype.clearContext = function() {
     twgl.resizeCanvasToDisplaySize(this.gl.canvas);
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-    this.gl.clearColor(0.0, 0.7, 0.8, 1.0);
+    this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     this.gl.enable(this.gl.BLEND);
-		// this.gl.enable(this.gl.CULL_FACE);
-		// this.gl.cullFace(this.gl.BACK)
-    this.gl.enable(this.gl.DEPTH_TEST);
-  //  this.setOrtho();
-		this.setProjection();
 
-		this.setView();
+    this.gl.enable(this.gl.DEPTH_TEST);
+    //this.setOrtho();
+	this.setProjection();
+
+	this.setView();
     this.setUniforms();
 };
 
@@ -302,22 +354,33 @@ Thomas.prototype.setupPrograms = function() {
 Thomas.prototype.render = function() {
 	this.clearContext();
 
-	for(var i = 0; i < 10000; i++) {
+
+	for(var i = 0; i < 3; i++) {
 		entities[i].renderable.render();
 		var ent = entities[i];
 		mat4.identity(entities[i].renderable.model);
-		mat4.translate(entities[i].renderable.model, entities[i].renderable.model, [i/50,Math.sin(jf + i * 0.001)*10.0,i % 100]);
+
+		// ent.vel.x = Math.cos(i + jf) * 5;
+		// ent.vel.y = Math.sin(i + jf) * 5;
+		// ent.position.x = ent.vel.x;
+		// ent.position.y = ent.vel.y;
+
+		mat4.translate(entities[i].renderable.model, entities[i].renderable.model, [ent.position.x, 0, ent.position.y]);
+		mat4.rotateY(entities[i].renderable.model, entities[i].renderable.model, jf);
+		//mat4.rotateZ(entities[i].renderable.model, entities[i].renderable.model, jf*2);
+		//mat4.rotateX(entities[i].renderable.model, entities[i].renderable.model, jf*2);
 
 		entities[i].renderable.setCustomUniforms();
 	}
+
 	requestAnimationFrame(this.render.bind(this));
 }
 var jf = 0;
 Thomas.prototype.setView = function() {
-	var camX = -50.0;
-	var camY = -10.0
-	var camZ = -50.0;
-	jf+=0.01;
+	var camX = 0.0;
+	var camY = 0.0
+	var camZ = 10.0;
+	jf += 0.01;
 	mat4.lookAt(this.viewMatrix, [camX, camY, camZ], [0,0,0], [0,1,0]);
 }
 

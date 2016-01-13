@@ -22,6 +22,7 @@
 		<script id="vs-default" type="notjs">
 			attribute vec3 a_position;
 			attribute vec3 a_normal;
+			attribute vec2 a_texcoord;
 
 			uniform mat4 u_projection;
 			uniform mat4 u_view;
@@ -29,12 +30,14 @@
 
 			varying vec3 v_normal;
 			varying vec3 v_position;
+			varying vec2 v_texcoord;
 
 			void main() {
 				gl_Position = u_projection * u_view * model * vec4(a_position, 1.0);
 
 				v_position = a_position;
 				v_normal =  mat3(model) * a_normal;
+				v_texcoord = a_texcoord;
 
 			}
 		</script>
@@ -43,12 +46,21 @@
 
 			varying vec3 v_normal;
 			varying vec3 v_position;
-			void main() {
-				vec3 testDir = normalize(vec3(100.0,-100.0,100.0) - gl_FragCoord.xyz);
-				float diff = max(dot(v_normal, testDir), 0.4);
-				vec3 diffuse = diff * vec3(0.8, 0.6, 0.0);
+			varying vec2 v_texcoord;
 
-				gl_FragColor = vec4(vec3(0.2, 0.0, 0.9) * diff, 1.0);
+			uniform sampler2D tex;
+
+			void main() {
+				vec3 testDir = normalize(v_position.xyz + vec3(50.0,0.0,50.0));
+				float diff = max(dot(v_normal, testDir), 1.0);
+				vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);
+				
+				vec4 img = texture2D(tex, v_texcoord);
+				//gl_FragColor = vec4(vec3(1.0, 1.0, 0.9) * diff, 1.0);
+				vec4 almost = img * vec4(diffuse, 1.0);
+				float bright = dot(img.xyz, vec3(1.0, 0.8, 0.05));
+	
+				gl_FragColor = almost;
 			}
 		</script>
 		<script src="twgl-full.js"></script>

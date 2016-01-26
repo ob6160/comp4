@@ -237,6 +237,7 @@ module.exports = Polygon;
 var twgl = window.twgl;
 var mat4 = require('gl-matrix').mat4;
 var vec3 = require('gl-matrix').vec3;
+var vec4 = require('gl-matrix').vec4;
 var vec2 = require("./vector2d.js");
 var Entity = require("./entity.js");
 var Mesh = require("./mesh.js");
@@ -305,10 +306,15 @@ Thomas.prototype.mouseEvent = function(e) {
 	var mouseX = (e.clientX / window.innerWidth) * 2 - 1;
     var mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
 
-   var mouseVeccy = vec3.create(mouseX, mouseY, -1);
-   vec3.multiply(mouseVeccy, mouseVeccy, vec3.inverse(this.viewMatrix, this.viewMatrix));
+   var viewProjMat = mat4.create();
+   mat4.multiply(viewProjMat, this.viewMatrix, this.projectionMatrix);
+   mat4.invert(viewProjMat, viewProjMat);
 
-  // console.log(mouseVeccy)
+   var mousy = vec4.fromValues(mouseX, mouseY, 1.0, 1.0);
+   mat4.multiply(mousy, viewProjMat, mousy);
+
+
+  console.log(mousy)
 }
 
 Thomas.prototype.setOrtho = function() {
@@ -318,7 +324,7 @@ Thomas.prototype.setOrtho = function() {
 
 Thomas.prototype.setProjection = function() {
 	var aspect = window.innerWidth / window.innerHeight;
-	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 0.5, 100000000);
+	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 0.5, 1000);
 };
 
 Thomas.prototype.loadTextures = function() {

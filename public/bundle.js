@@ -238,7 +238,7 @@ function Thomas() {
 
 var testEntity = null;
 var testMesh = null;
-var countries = {};
+var countries = [];
 //Creates a WebGL context bound to specified canvas id
 //canvas_id: id of canvas to be used
 Thomas.prototype.setup = function(canvas_id) {
@@ -262,15 +262,19 @@ Thomas.prototype.setup = function(canvas_id) {
 
  
     	var countrylist = Object.keys(country_data);
+    	countrylist.push(countrylist.shift())
+    	var colourCount = 20000;
     	for(var i = 0; i < countrylist.length; i++) {
+    		colourCount++;
     		var newCountry = new Country(country_data[countrylist[i]]);
     		newCountry.constructBuffers(this.gl, this.programs["default"])	
 
-    		var countryEntity = new Entity(this.gl, this.programs["default"]);
+			var countryEntity = new Entity(this.gl, this.programs["default"]);
+			countryEntity.name = countrylist[i + 1];	
 			countryEntity.bindMesh(newCountry.mesh);
 
-			var colour = [i % 255 / 255,  Math.floor(i/255) / 255, Math.floor(i/(255*255)) / 255];
-			
+			var colour = [colourCount % 255 / 255,  Math.floor(colourCount/255) / 255, Math.floor(colourCount/(255*255)) / 255];
+
 			countryEntity.applyCustomUniforms([
 				["colour", colour]			
 			]);
@@ -292,10 +296,19 @@ Thomas.prototype.resizeEvent = function() {
 var mouseDown = false;
 Thomas.prototype.mouseUp = function(e) {
 	mouseDown = false;
-	
+};
+
+Thomas.prototype.mouseDown = function(e) {
+	mouseDown = true;
+	this.mouseX = e.clientX;
+	this.mouseY = e.clientY;
+
 
 	this.gl.readPixels(this.mouseX, this.gl.canvas.height - this.mouseY, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.colourPicked);
+	
 	this.currentlySelectedCountry = countries[this.colourPicked[0]+this.colourPicked[1]+this.colourPicked[2]];
+
+	document.getElementById("country_name").textContent = this.currentlySelectedCountry.name;
 
 	for(var i in countries) {
 		countries[i].applyCustomUniforms([
@@ -306,14 +319,6 @@ Thomas.prototype.mouseUp = function(e) {
  	this.currentlySelectedCountry.applyCustomUniforms([
 		["selected", true]			
 	]);
-};
-
-Thomas.prototype.mouseDown = function(e) {
-
-	mouseDown = true;
-	this.mouseX = e.clientX;
-	this.mouseY = e.clientY;
-	console.log("lol")
 };
 
 Thomas.prototype.mouseMove = function(e) {
@@ -334,7 +339,7 @@ Thomas.prototype.mouseMove = function(e) {
 Thomas.prototype.setCamera = function(x, y, z) {
 	this.camX -= x;
 	this.camY += y;
-	this.camZ = 100;
+	this.camZ = 150;
 };
 
 Thomas.prototype.setOrtho = function() {

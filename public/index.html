@@ -2,22 +2,32 @@
 <html>
 	<head>
 	<style>
-      html, body {
-        margin: 0px;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        font-family: monospace;
-      }
-      canvas {
-        width: 100%;
-        height: 100%;
+	html, body {
+		margin: 0px;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+		font-family: monospace;
 	}
+	canvas {
+		width: 100%;
+		height: 100%;
+	}
+	div.overlay {
+		position: fixed;
+		font-size: 50px;
+		color: white;
+		-webkit-user-select: none;
+	}
+
+
     </style>
 	</head>
 	<body>
-		<canvas id="c"></canvas>
-
+		<div>
+			<div class="overlay"><p id="country_name">Narnia</p></div>
+			<canvas id="c"></canvas>
+		</div>
 
 		<script id="vs-default" type="notjs">
 			attribute vec3 a_position;
@@ -50,7 +60,7 @@
 				// vec3 testDir = normalize(vec3(0,100.0,0) - gl_FragCoord.xyz);
 				// float diff = max(dot(v_normal, testDir), 0.0);
 				// vec3 diffuse = diff * vec3(0.5, 0.1, 0.3);
-				vec3 sel = vec3(0.5, 0.9, 0.5);
+				vec3 sel = vec3(0.5, 0.9, 0.2);
 				if(selected == true) {
 					gl_FragColor = vec4(sel, 1.0);
 					return;

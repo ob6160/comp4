@@ -65,7 +65,7 @@
 					gl_FragColor = vec4(sel, 1.0);
 					return;
 				}
-				gl_FragColor = vec4(colour, 1.0);
+				gl_FragColor = vec4(colour.x / 255.0, colour.y / 255.0, colour.z / 255.0, 1.0);
 
 			}
 		</script>

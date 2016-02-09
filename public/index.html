@@ -45,6 +45,8 @@
 			void main() {
 				gl_Position = u_projection * u_view * model * vec4(a_position, 1.0);
 				v_normal = normalize(mat3(model) * a_normal);
+
+				v_texcoord = a_texcoord;
 			}
 		</script>
 		<script id="fs-default" type="notjs">
@@ -53,7 +55,9 @@
 			uniform bool selected;
 			uniform vec3 colour;
 
+			uniform sampler2D tex;
 			varying vec3 v_normal;
+			varying vec2 v_texcoord;
 
 
 			void main() {
@@ -63,6 +67,11 @@
 				vec3 sel = vec3(0.5, 0.9, 0.2);
 				if(selected == true) {
 					gl_FragColor = vec4(sel, 1.0);
+					return;
+				}
+
+				if(v_texcoord.x > -0.0) {
+					gl_FragColor = texture2D(tex, vec2(v_texcoord.x, v_texcoord.y));
 					return;
 				}
 				gl_FragColor = vec4(colour.x / 255.0, colour.y / 255.0, colour.z / 255.0, 1.0);

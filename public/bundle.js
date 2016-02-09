@@ -26,15 +26,14 @@ Country.prototype.constructBuffers = function(gl, program) {
 		var x = this.points[i];
 		var y = this.points[i + 1];
 		
-		var phi = +(90.0 - x) * Math.PI / 180.0;
-	    var the = +(180.0 - y) * Math.PI / 180.0;
+		var phi = +(90.0 - y) * Math.PI / 180.0;
+	    var the = +(180.0 - x) * Math.PI / 180.0;
 		
 		var wx = Math.sin(the) * Math.sin(phi) * -1;
 	    var wz = Math.cos(the) * Math.sin(phi);
 	    var wy = Math.cos(phi);
 
-
-		this.mesh.addVertex(wx * 0.98, wy * 0.98, wz * 0.98);
+		this.mesh.addVertex(wx, wy, wz);
 		this.mesh.addNormal(0,1,0);
 	};
 
@@ -44,6 +43,8 @@ Country.prototype.constructBuffers = function(gl, program) {
 	};
 
 	this.mesh.addIndices(this.indices);
+
+
 
 	this.mesh.construct(gl);	
 };
@@ -90,8 +91,6 @@ Entity.prototype.bindMesh = function(mesh) {
 };
 
 Entity.prototype.render = function() {
-  mat4.identity(this.model, this.model);
-  
   this.mesh.render();
 };
 
@@ -116,13 +115,15 @@ game.setup("c");
 game.render();
 
 },{"./thomas":6}],5:[function(require,module,exports){
-function Mesh(gl, program, renderMode, vertices, indices, normals) {
+function Mesh(gl, program, renderMode, vertices, indices, normals, texcoord) {
   this.vertices = vertices || [];
   this.indices = indices || [];
   this.normals = normals || [];
+  this.texcoord = texcoord || null;
 
   this.vertexBuffer = null;
   this.indexBuffer = null;
+  this.texcoordBuffer = null;
   this.vertexNormalBuffer = null;
 
   this.programWrap = program;
@@ -130,7 +131,8 @@ function Mesh(gl, program, renderMode, vertices, indices, normals) {
 
   this.attribs = {
     a_position: gl.getAttribLocation(this.program, 'a_position'),
-    a_normal: gl.getAttribLocation(this.program, 'a_normal')
+    a_normal: gl.getAttribLocation(this.program, 'a_normal'),
+    a_texcoord: gl.getAttribLocation(this.program, 'a_texcoord')
   }
 
   this.vao = null;
@@ -208,6 +210,17 @@ Mesh.prototype.construct = function(gl) {
   gl.enableVertexAttribArray(this.attribs.a_position);
   gl.vertexAttribPointer(this.attribs.a_position, 3, gl.FLOAT, false, 0, 0);
 
+  if(this.texcoord) {
+    //Setup texcoord buffer
+    this.texcoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.texcoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texcoord), gl.STATIC_DRAW);
+
+    //Setup texcoord attributes
+    gl.enableVertexAttribArray(this.attribs.a_texcoord);
+    gl.vertexAttribPointer(this.attribs.a_texcoord, 2, gl.FLOAT, false, 0, 0);
+  };
+
   //Setup index buffer
   this.indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
@@ -252,9 +265,15 @@ function Thomas() {
 	this.globe = null;
 	this.camX = 0;
 	this.camY = 0;
-	this.camZ = 200;
+	this.camZ = 5;
+	this.camAccelX = 0;
+	this.camAccelZ = 0;
 
-  	this.FSIZE = new Float32Array().BYTES_PER_ELEMENT;
+	this.dX = 0;
+	this.dY = 0;
+	this.dZ = 0;
+
+  	this.FSIZE = 4;
 };
 
 //Creates a WebGL context bound to specified canvas id
@@ -274,10 +293,21 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.loadTextures();
 		this.bindHandlers();
 
-		var globe_vertices = twgl.primitives.createSphereVertices(10,10,10);
+		var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
 
-		this.globe = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, globe_vertices.position, globe_vertices.indices, globe_vertices.normal)
-    	this.globe.construct(this.gl);
+		var globe = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
+    	globe.construct(this.gl);
+
+    	this.globe = new Entity(this.gl, this.programs["default"]);
+		this.globe.bindMesh(globe);
+
+		this.globe.applyCustomUniforms([
+			["colour", [255, 255, 255]],
+			["selected", false],
+			["tex", this.textures.water]		
+		]);
+
+
     	this.genCountries();
 
 		return [null, this.gl];
@@ -298,7 +328,7 @@ Thomas.prototype.genCountries = function() {
 	for(var i in country_data) {
 		indexCounter++;
 
-		var country_colour = new Float32Array(this.genColour(indexCounter, 10));
+		var country_colour = new Float32Array(this.genColour(indexCounter, 1000));
 		var country = new Country(country_data[i], i, country_colour);
 
 		country.constructBuffers(this.gl, this.programs["default"]);
@@ -342,6 +372,7 @@ Thomas.prototype.resizeEvent = function() {
 
 Thomas.prototype.mouseUp = function(e) {
 	this.mouseState = false;
+	this.camAccelX = 0;
 };
 
 Thomas.prototype.mouseDown = function(e) {
@@ -349,6 +380,8 @@ Thomas.prototype.mouseDown = function(e) {
 
 	this.mouseX = e.clientX;
 	this.mouseY = e.clientY;
+
+	this.dX = 0;
 
 	this.pickCountry(this.mouseX, this.mouseY);
 };
@@ -361,16 +394,28 @@ Thomas.prototype.mouseMove = function(e) {
     var dX = curX - this.mouseX;
     var dY = curY - this.mouseY;
 
-    this.setCamera(dX * 0.5, dY * 0.5, 0);
+
+    this.camAccelX += dX;
+   // this.setCamera(dX * 0.5, dY * 0.5, 0);
     
     this.mouseX = curX;
     this.mouseY = curY;
 };
 
+Thomas.prototype.rotateEarth = function(x, y) {
+
+	mat4.rotateY(this.globe.model, this.globe.model, x);
+	for(var i in this.countries) {
+		var country = this.countries[i];
+		mat4.rotateY(country.entity.model, country.entity.model, x);
+	};
+
+};
+
 Thomas.prototype.setCamera = function(x, y, z) {
 	this.camX -= x;
 	this.camY += y;
-	this.camZ = 10;
+	this.camZ = 5;
 };
 
 Thomas.prototype.setOrtho = function() {
@@ -392,6 +437,11 @@ Thomas.prototype.loadTextures = function() {
 		},
 		earthnight: {
 			src: "images/earth_at_night.jpg",
+			mag: gl.NEAREST
+		},
+		water: {
+			src: "images/ocean.jpg",
+			wrap: gl.REPEAT,
 			mag: gl.NEAREST
 		}
 	});
@@ -417,21 +467,27 @@ Thomas.prototype.setupPrograms = function() {
 Thomas.prototype.render = function() {
 	this.clearContext();
 
-	//this.globe.render();
-	for(var i in this.countries) {
+	this.globe.setCustomUniforms();
+	this.globe.render();
 
+	this.dX *= 0.9;
+	if(Math.abs(this.dX) < 0.1) {
+		this.dX += this.camAccelX * 0.0001;
+	}
+	
+	this.rotateEarth(this.dX, this.dY);
+
+	for(var i in this.countries) {
 		this.countries[i].entity.setCustomUniforms();
 		this.countries[i].entity.render();
-		
 	}
 
 	requestAnimationFrame(this.render.bind(this));
-}
-var ff = 0;
+};
+
 Thomas.prototype.setView = function() {
-	ff += 0.01;
-	mat4.lookAt(this.viewMatrix, [Math.cos(ff) * 2, 0, this.camZ + Math.sin(ff) * 2], [this.camX, this.camY, -100], [0,1,0]);
-}
+	mat4.lookAt(this.viewMatrix, [0, 0, this.camZ], [this.camX, this.camY, -100], [0,1,0]);
+};
 
 Thomas.prototype.setupProgram = function(name, vs, fs) {
 	this.programs[name] = twgl.createProgramInfo(this.gl, [vs, fs]);

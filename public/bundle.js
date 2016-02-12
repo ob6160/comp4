@@ -11,6 +11,7 @@ function Country(data, name, colour) {
 	this.data = data;
 
 	this.points = this.data["vertices"];
+	this.continent = this.data["data"].cont;
 	this.indices = [];
 };
 
@@ -43,8 +44,6 @@ Country.prototype.constructBuffers = function(gl, program) {
 	};
 
 	this.mesh.addIndices(this.indices);
-
-
 
 	this.mesh.construct(gl);	
 };
@@ -156,9 +155,9 @@ Mesh.prototype.render = function() {
   //Render
   this.ext.bindVertexArrayOES(this.vao);
   if (this.index32Bit) {
-    gl.drawElements(gl.TRIANGLES, this.indices.length, gl.UNSIGNED_INT, 0);
+    gl.drawElements(this.renderMode, this.indices.length, gl.UNSIGNED_INT, 0);
   } else {
-    gl.drawElements(gl.TRIANGLES, this.indices.length, gl.UNSIGNED_SHORT, 0);
+    gl.drawElements(this.renderMode, this.indices.length, gl.UNSIGNED_SHORT, 0);
   };
 
   this.ext.bindVertexArrayOES(null);
@@ -262,11 +261,21 @@ function Thomas() {
 	this.projectionMatrix = mat4.create();
 	this.mouseState = false;
 	this.colourPicked = new Uint8Array(4);
+	
 	this.globe = null;
+
+	this.time = 0.0;
+
 	this.camX = 0;
 	this.camY = 0;
 	this.camZ = 5;
+
+	this.rotX = 0;
+	this.rotY = 0;
+	this.rotZ = 0;
+
 	this.camAccelX = 0;
+	this.camAccelY = 0;
 	this.camAccelZ = 0;
 
 	this.dX = 0;
@@ -285,6 +294,7 @@ Thomas.prototype.setup = function(canvas_id) {
 
 		this.textures = {};
 
+		// this.setOrtho();
 		this.setProjection();
 		this.setView();
 
@@ -293,7 +303,7 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.loadTextures();
 		this.bindHandlers();
 
-		var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
+		var globe_vertices = twgl.primitives.createSphereVertices(0.95,100,100);
 
 		var globe = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
     	globe.construct(this.gl);
@@ -328,7 +338,19 @@ Thomas.prototype.genCountries = function() {
 	for(var i in country_data) {
 		indexCounter++;
 
-		var country_colour = new Float32Array(this.genColour(indexCounter, 1000));
+		var country_colour = null;
+
+		var continent = country_data[i]["data"]["cont"];
+		console.log(continent);
+		if(continent == "NA") {
+			country_colour = new Float32Array(this.genColour(indexCounter, 100000));
+		} else if(continent == "AF") {
+			country_colour = new Float32Array(this.genColour(indexCounter, 20000));
+		} else {
+			country_colour = new Float32Array(this.genColour(indexCounter, 11581375));
+		}
+		
+		
 		var country = new Country(country_data[i], i, country_colour);
 
 		country.constructBuffers(this.gl, this.programs["default"]);
@@ -350,9 +372,11 @@ Thomas.prototype.genColour = function(index, offset) {
 
 Thomas.prototype.pickCountry = function(x, y) {
 	this.gl.readPixels(this.mouseX, this.gl.canvas.height - this.mouseY, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.colourPicked);
-	this.currentlySelectedCountry = this.countries["" + this.colourPicked[0] + this.colourPicked[1] +  this.colourPicked[2]];
+	this.currentlySelectedCountry = this.countries["" + this.colourPicked[0] + this.colourPicked[1] +  this.colourPicked[2]] || { name:"Narnia", continent: "Narnia"}
 
-	document.getElementById("country_name").textContent = this.currentlySelectedCountry.name;
+
+	document.getElementById("country_name").textContent = this.currentlySelectedCountry.name || "Narnia";
+	document.getElementById("country_info").textContent = "Continent: " + this.currentlySelectedCountry.continent || "Narnia";
 
 	for(var i in this.countries) {
 		this.countries[i].entity.applyCustomUniforms([
@@ -373,6 +397,7 @@ Thomas.prototype.resizeEvent = function() {
 Thomas.prototype.mouseUp = function(e) {
 	this.mouseState = false;
 	this.camAccelX = 0;
+	this.camAccelY = 0;
 };
 
 Thomas.prototype.mouseDown = function(e) {
@@ -396,20 +421,24 @@ Thomas.prototype.mouseMove = function(e) {
 
 
     this.camAccelX += dX;
+    this.camAccelY += dY;
    // this.setCamera(dX * 0.5, dY * 0.5, 0);
     
     this.mouseX = curX;
     this.mouseY = curY;
 };
-
 Thomas.prototype.rotateEarth = function(x, y) {
+	this.rotX += x;
+	this.rotY += y;
 
-	mat4.rotateY(this.globe.model, this.globe.model, x);
 	for(var i in this.countries) {
 		var country = this.countries[i];
-		mat4.rotateY(country.entity.model, country.entity.model, x);
+		mat4.identity(country.entity.model, country.entity.model);
+		mat4.rotateY(country.entity.model, country.entity.model, this.rotX);
 	};
-
+	
+	mat4.identity(this.globe.model, this.globe.model);
+	mat4.rotateY(this.globe.model, this.globe.model, this.rotX);
 };
 
 Thomas.prototype.setCamera = function(x, y, z) {
@@ -441,8 +470,8 @@ Thomas.prototype.loadTextures = function() {
 		},
 		water: {
 			src: "images/ocean.jpg",
-			wrap: gl.REPEAT,
-			mag: gl.NEAREST
+			// wrap: gl.REPEAT,
+			// mag: gl.NEAREST
 		}
 	});
 }
@@ -467,26 +496,35 @@ Thomas.prototype.setupPrograms = function() {
 Thomas.prototype.render = function() {
 	this.clearContext();
 
+	this.rotateEarth(this.dX, this.dY);
+	
 	this.globe.setCustomUniforms();
 	this.globe.render();
 
 	this.dX *= 0.9;
+	this.dY *= 0.9;
+	
 	if(Math.abs(this.dX) < 0.1) {
 		this.dX += this.camAccelX * 0.0001;
 	}
 	
-	this.rotateEarth(this.dX, this.dY);
+	if(Math.abs(this.dY) < 0.1) {
+		this.dY += this.camAccelY * 0.0001;
+	}
 
 	for(var i in this.countries) {
 		this.countries[i].entity.setCustomUniforms();
 		this.countries[i].entity.render();
 	}
 
+	this.time += 1;
+
 	requestAnimationFrame(this.render.bind(this));
 };
 
 Thomas.prototype.setView = function() {
-	mat4.lookAt(this.viewMatrix, [0, 0, this.camZ], [this.camX, this.camY, -100], [0,1,0]);
+	// mat4.lookAt(this.viewMatrix, [0, 0, this.camZ], [this.camX, this.camY, -100], [0,1,0]);
+	mat4.lookAt(this.viewMatrix, [this.camX, this.camY, this.camZ], [0, 0, 0], [0,1,0]);
 };
 
 Thomas.prototype.setupProgram = function(name, vs, fs) {
@@ -507,6 +545,9 @@ Thomas.prototype.setUniforms = function() {
 
 		var u_view = this.gl.getUniformLocation(program, 'u_view');
 		this.gl.uniformMatrix4fv(u_view, false, this.viewMatrix);
+
+		var time = this.gl.getUniformLocation(program, 'time');
+		this.gl.uniform1f(time, this.time)
 	};
 };
 

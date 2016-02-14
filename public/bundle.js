@@ -478,10 +478,15 @@ Thomas.prototype.resizeEvent = function() {
 
 Thomas.prototype.mouseUp = function(e) {
 	this.mouseState = false;
+	
+	if(e.touches == undefined && this.camAccelX == 0) {
+		this.pickCountry(this.mouseX, this.mouseY);
+	}
+
 	this.camAccelX = 0;
 	this.camAccelY = 0;
 	
-
+	
 	
 
 };
@@ -499,7 +504,7 @@ Thomas.prototype.mouseDown = function(e) {
 		this.mouseX = e.clientX;
 		this.mouseY = e.clientY;
 		
-		this.pickCountry(this.mouseX, this.mouseY);
+		
 
 		this.dX = 0;
 		return;

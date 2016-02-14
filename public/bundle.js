@@ -480,26 +480,35 @@ Thomas.prototype.mouseUp = function(e) {
 	this.mouseState = false;
 	this.camAccelX = 0;
 	this.camAccelY = 0;
-	this.pickCountry(this.mouseX, this.mouseY);
+	
+
+	
+
 };
 
 Thomas.prototype.touchEnd = function(e) {
 	//this.mouseState = false;
 	this.camAccelX = 0;
 	this.camAccelY = 0;
-
-	
 };
 
 Thomas.prototype.mouseDown = function(e) {
 	this.mouseState = true;
 
 	if(e.touches == undefined) {
-		e.touches = [{pageX: e.clientX, pageY: e.clientY}]
+		this.mouseX = e.clientX;
+		this.mouseY = e.clientY;
+		
+		this.pickCountry(this.mouseX, this.mouseY);
+
+		this.dX = 0;
+		return;
 	};
 
 	this.mouseX = e.touches[0].pageX;
 	this.mouseY = e.touches[0].pageY;
+
+
 
 	this.dX = 0;
 };
@@ -507,7 +516,22 @@ Thomas.prototype.mouseDown = function(e) {
 Thomas.prototype.mouseMove = function(e) {
   	if(!this.mouseState) return;
   	if(e.touches == undefined) {
-  		e.touches = [{pageX: e.clientX, pageY: e.clientY}]
+ 		
+	  	var curX = e.clientX;
+	    var curY = e.clientY;
+
+	    var dX = curX - this.mouseX;
+	    var dY = curY - this.mouseY;
+
+
+	    this.camAccelX += dX;
+	    this.camAccelY += dY;
+	   // this.setCamera(dX * 0.5, dY * 0.5, 0);
+	    
+	    this.mouseX = curX;
+	    this.mouseY = curY;
+
+	    return;
   	};
 
   	var curX = e.touches[0].pageX;
@@ -527,13 +551,15 @@ Thomas.prototype.mouseMove = function(e) {
 
 Thomas.prototype.rotateEarth = function(dx, dy) {
 	this.rotX += dx;
-	this.rotY += dy;
+	//this.rotY += dy;
 
 	mat4.identity(this.globe.model, this.globe.model);
 	mat4.rotateY(this.globe.model, this.globe.model, this.rotX);
+	mat4.rotateX(this.globe.model, this.globe.model, this.rotY);
 
 	mat4.identity(this.midPointRussia.model, this.midPointRussia.model);
 	mat4.rotateY(this.midPointRussia.model, this.midPointRussia.model, this.rotX);
+	mat4.rotateX(this.midPointRussia.model, this.midPointRussia.model, this.rotY);
 	mat4.translate(this.midPointRussia.model, this.midPointRussia.model, [0, 0, 0]);	
 
 	for(var i in this.countries) {
@@ -541,10 +567,14 @@ Thomas.prototype.rotateEarth = function(dx, dy) {
 		if(country.name == this.currentlySelectedCountry.name) {
 			mat4.identity(this.midPointRussia.model, this.midPointRussia.model);
 			mat4.rotateY(this.midPointRussia.model, this.midPointRussia.model, this.rotX);
+			mat4.rotateX(this.midPointRussia.model, this.midPointRussia.model, this.rotY);
 			mat4.translate(this.midPointRussia.model, this.midPointRussia.model, [country.midpoint[0], country.midpoint[1], country.midpoint[2]]);	
 		};
+
+
 		mat4.identity(country.entity.model, country.entity.model);
 		mat4.rotateY(country.entity.model, country.entity.model, this.rotX);
+		mat4.rotateX(country.entity.model, country.entity.model, this.rotY);
 	};	
 };
 

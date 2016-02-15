@@ -1,8 +1,7 @@
 #AQA COMP4 Project
-==
 
-Getting there.
-Check it out at: [sweg.xyz](sweg.xyz:8080)
+##Getting there.
+Check it out at: [sweg.xyz](http://sweg.xyz:8080)
 
 
 

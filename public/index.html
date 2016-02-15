@@ -81,9 +81,12 @@
 			precision mediump float;
 
 			uniform bool selected;
+			uniform bool isTextured;
 			uniform vec3 colour;
 			uniform float time;
 			uniform sampler2D tex;
+
+
 			varying vec3 v_normal;
 			varying vec2 v_texcoord;
 
@@ -95,10 +98,11 @@
 					return;
 				}
 
-				if(v_texcoord.x > 0.0) {
+				if(isTextured == true) {
 					gl_FragColor = texture2D(tex, vec2(v_texcoord.x, v_texcoord.y));
 					return;
 				}
+				
 				gl_FragColor = vec4(colour.x / 255.0, colour.y / 255.0, colour.z / 255.0, 1.0);
 
 			}

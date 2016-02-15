@@ -26,21 +26,6 @@ Country.prototype.constructBuffers = function(gl, program) {
 		return;
 	};
 
-	for(var i = 0; i < this.points.length; i += 2) {
-		var x = this.points[i];
-		var y = this.points[i + 1];
-		
-	 	var triangulated = Util.triangulatePoint(x, y);
-
-		this.mesh.addVertex(triangulated[0], triangulated[1], triangulated[2]);
-		this.mesh.addNormal(0,1,0);
-	};
-
-	//Construct indices
-	for(var i = 0; i < this.data["triangles"].length; i++) {
-		this.triangleIndices[i] = this.data["triangles"][i];
-	};
-
 
 	var lowX = this.points[0];
 	var lowY = this.points[1];
@@ -58,7 +43,27 @@ Country.prototype.constructBuffers = function(gl, program) {
 	
 		if(x1 > highX) highX = x1;
 		if(y1 > highY) highY = y1;
+
 	}
+
+	for(var i = 0; i < this.points.length; i += 2) {
+		var x = this.points[i];
+		var y = this.points[i + 1];
+		
+	 	var triangulated = Util.triangulatePoint(x, y);
+
+		this.mesh.addVertex(triangulated[0], triangulated[1], triangulated[2]);
+		this.mesh.addNormal(0,1,0);
+		
+		this.mesh.addTexcoord(Math.abs((x-highX)/Math.abs(highX-lowX)), Math.abs((y-highY)/Math.abs(highY-lowY)));
+	};
+
+
+	//Construct indices
+	for(var i = 0; i < this.data["triangles"].length; i++) {
+		this.triangleIndices[i] = this.data["triangles"][i];
+	};
+
 
 
 	this.midpoint = Util.triangulatePoint(lowX + (highX - lowX)/2, lowY + (highY - lowY)/2);
@@ -107,7 +112,9 @@ Country.prototype.constructEntity = function(gl, program) {
 
 	this.entity.applyCustomUniforms([
 		["colour", this.colour],
-		["selected", false]		
+		["selected", false],
+		["isTextured", true],
+		["tex", this.texture]	
 	]);
 };
 
@@ -220,6 +227,15 @@ Mesh.prototype.addVertex = function(x, y, z) {
   this.vertices.push(x);
   this.vertices.push(y);
   this.vertices.push(z);
+};
+
+Mesh.prototype.addTexcoord = function(x, y) {
+  if(!this.texcoord) {
+    this.texcoord = [];
+  };
+
+  this.texcoord.push(x);
+  this.texcoord.push(y);
 };
 
 Mesh.prototype.addNormal = function(x, y, z) {
@@ -359,7 +375,7 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.loadTextures();
 		this.bindHandlers();
 
-		var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
+		var globe_vertices = twgl.primitives.createSphereVertices(0.99,50,50);
 		var midpointVertices = twgl.primitives.createSphereVertices(0.01,100,100);
 
 		var globe = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
@@ -368,30 +384,24 @@ Thomas.prototype.setup = function(canvas_id) {
     	var midpointVerticesMesh = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, midpointVertices.position, midpointVertices.indices, midpointVertices.normal)
     	midpointVerticesMesh.construct(this.gl);
     	
-
-
-
     	this.globe = new Entity(this.gl, this.programs["default"]);
 		this.globe.bindMesh(globe);
 
 		this.midPointRussia = new Entity(this.gl, this.programs["default"]);
 		this.midPointRussia.bindMesh(midpointVerticesMesh);
 
-
-
-
 		this.globe.applyCustomUniforms([
-			["colour", [255, 255, 255]],
+			["colour", [50, 15, 255]],
 			["selected", false],
-			["tex", this.textures.water]		
+			["tex", this.textures.water],		
+			["isTextured", true]		
 		]);
-
 
 		this.midPointRussia.applyCustomUniforms([
 			["colour", [255, 0, 255]],
-			["selected", false]		
+			["selected", false],
+			["isTextured", false]
 		]);
-
 
     	this.genCountries();
 
@@ -435,7 +445,7 @@ Thomas.prototype.genCountries = function() {
 		
 		
 		var country = new Country(country_data[i], i, country_colour);
-
+		country.texture = this.textures.canada;
 		country.constructBuffers(this.gl, this.programs["default"]);
 		country.constructEntity(this.gl, this.programs["default"]);
 		this.countries["" + country_colour[0] + country_colour[1] + country_colour[2]] = country;
@@ -620,9 +630,12 @@ Thomas.prototype.loadTextures = function() {
 			mag: gl.NEAREST
 		},
 		water: {
-			src: "images/ocean.png",
-			wrap: gl.REPEAT,
+			src: "images/trump.jpg",
+			//wrap: gl.REPEAT,
 			//mag: gl.NEAREST
+		},
+		canada: {
+			src: "images/canada.jpg"
 		}
 	});
 };

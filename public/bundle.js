@@ -603,7 +603,7 @@ Thomas.prototype.mouseDown = function(e) {
 };
 
 Thomas.prototype.mouseMove = function(e) {
-  	e.preventDefault();
+  //	e.preventDefault();
   	if(!this.mouseState) return;
   	if(e.touches == undefined) {
  		
@@ -705,7 +705,7 @@ Thomas.prototype.loadTextures = function() {
 			mag: gl.NEAREST
 		},
 		canada: {
-			src: "images/canada.jpg"
+			src: "images/trump.jpg"
 		}
 	});
 };

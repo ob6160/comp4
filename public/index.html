@@ -74,7 +74,7 @@
 			void main() {
 				vec3 tempPos = a_position;
 				if(water == true) {
-					tempPos.z += sin(time * tempPos.x) * cos(time * tempPos.y) * time;	
+					tempPos.z += sin(time * tempPos.x) * cos(time * tempPos.y) * 2.0;	
 				}
 				
 				gl_Position = u_projection * u_view * model * vec4(tempPos, 1.0);

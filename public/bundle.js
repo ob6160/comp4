@@ -119,7 +119,8 @@ Country.prototype.constructEntity = function(gl, program) {
 		["selected", false],
 		["isTextured", true],
 		["tex", this.texture],
-		["offScreen", false]
+		["offScreen", false],
+		["water", false]	
 	]);
 };
 

@@ -119,7 +119,8 @@ Country.prototype.constructEntity = function(gl, program) {
 		["selected", false],
 		["isTextured", true],
 		["tex", this.texture],
-		["offScreen", false]
+		["offScreen", false],
+		["water", false]	
 	]);
 };
 
@@ -719,7 +720,8 @@ Thomas.prototype.setup = function(canvas_id) {
 			["selected", false],
 			["tex", this.textures.water],		
 			["isTextured", true],
-			["offScreen", false]	
+			["offScreen", false],
+			["water", true]	
 		]);
 
 
@@ -728,7 +730,8 @@ Thomas.prototype.setup = function(canvas_id) {
 			["selected", false],
 			["tex", this.framebuffers["pick"].texture],		
 			["isTextured", true],
-			["offScreen", false]
+			["offScreen", false],
+
 		]);
 
 
@@ -965,9 +968,9 @@ Thomas.prototype.loadTextures = function() {
 	var gl = this.gl;
 	this.textures = twgl.createTextures(gl, {
 		water: {
-			src: "images/ocean.png",
-			wrap: gl.REPEAT,
-			mag: gl.NEAREST
+			src: "images/new_water.jpg",
+			// wrap: gl.REPEAT,
+			// mag: gl.NEAREST
 		},
 		canada: {
 			src: "images/canada.png"
@@ -1080,7 +1083,7 @@ Thomas.prototype.render = function() {
 	// mat4.translate(this.debugPlane.model, this.debugPlane.model, [-1.0, 0.0, 0.0])
 	
 
-	//this.time += 1;
+	this.time += 0.1;
 
 	requestAnimationFrame(this.render.bind(this));
 };

@@ -510,6 +510,10 @@ Mesh.prototype.drawElements = function() {
     };
 };
 
+Mesh.prototype.setRenderMode = function(mode) {
+  this.renderMode = mode;
+};
+
 Mesh.prototype.addVertex = function(x, y, z) {
   this.vertices.push(x);
   this.vertices.push(y);
@@ -617,9 +621,9 @@ function Thomas() {
 	this.gl = null;
 	this.renderBuffer = null;
 	
-	this.framebuffers = {
+	this.framebuffers = {};
 
-	};
+	this.textures = {};
 
 	this.programs = {};
 
@@ -628,6 +632,8 @@ function Thomas() {
 	this.viewMatrix = mat4.create();
 	this.projectionMatrix = mat4.create();
 	
+	this.currentProjection = "Perspective";
+
 	this.globeRotationMatrix = mat4.create();
 
 	this.mouseState = false;
@@ -668,6 +674,8 @@ Thomas.prototype.setup = function(canvas_id) {
 
 		this.renderBuffer = this.gl.createRenderbuffer();
 
+		this.setupOptions();
+
 		twgl.resizeCanvasToDisplaySize(this.gl.canvas);
 
 		this.bindRenderbuffer(this.renderBuffer);
@@ -675,11 +683,8 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.setupRenderbuffer(this.renderBuffer, 1920, 1080);
 		this.unbindFramebuffer();
 
-		this.textures = {};
+		this.setProjection(this.currentProjection);			
 
-		// this.setOrtho();
-		this.setProjection();
-		
 		this.setView();
 
 		this.setupPrograms();
@@ -687,60 +692,7 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.loadTextures();
 		this.bindHandlers();
 
-		var globe_vertices = twgl.primitives.createSphereVertices(0.99,50,50);
-		var midpointVertices = twgl.primitives.createSphereVertices(0.01,100,100);
-	
-		var rotMat = mat4.create();
-		mat4.rotateX(rotMat, rotMat, Math.PI*0.5*-1);
-
-		var debugPlaneVertices = twgl.primitives.createPlaneVertices(4.0, 2.0, 0.0, 0.0, rotMat);
-		 
-		var globe = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
-    	globe.construct(this.gl);	
-
-    	var midpointVerticesMesh = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, midpointVertices.position, midpointVertices.indices, midpointVertices.normal)
-    	midpointVerticesMesh.construct(this.gl);
-
-    	var debugPlaneMesh = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, debugPlaneVertices.position, debugPlaneVertices.indices, debugPlaneVertices.normal, debugPlaneVertices.texcoord)
-    	debugPlaneMesh.construct(this.gl);
-    
-    	this.globe = new Entity(this.gl, this.programs["default"]);
-		this.globe.bindMesh(globe);
-
-		this.midPointRussia = new Entity(this.gl, this.programs["default"]);
-		this.midPointRussia.bindMesh(midpointVerticesMesh);
-
-		this.debugPlane = new Entity(this.gl, this.programs["default"]);
-		this.debugPlane.bindMesh(debugPlaneMesh);
-
-
-
-		this.globe.applyCustomUniforms([
-			["colour", [50, 15, 255]],
-			["selected", false],
-			["tex", this.textures.water],		
-			["isTextured", true],
-			["offScreen", false],
-			["water", true]	
-		]);
-
-
-		this.debugPlane.applyCustomUniforms([
-			["colour", [50, 15, 15]],
-			["selected", false],
-			["tex", this.framebuffers["pick"].texture],		
-			["isTextured", true],
-			["offScreen", false],
-
-		]);
-
-
-		this.midPointRussia.applyCustomUniforms([
-			["colour", [255, 0, 255]],
-			["selected", false],
-			["isTextured", false],
-			["offScreen", false]
-		]);
+		this.setupScene();
 		
     	this.genCountries();
 
@@ -749,6 +701,37 @@ Thomas.prototype.setup = function(canvas_id) {
 		return ["Specify a canvas id", null];
 	};
 };
+
+Thomas.prototype.setupOptions = function() {
+	this.options = {
+		projectionType: "Perspective",
+		renderMode: "TRIANGLES",
+		countryTextures: true
+
+	};
+
+	window.options = this.options;
+};
+
+Thomas.prototype.setupScene = function() {
+	var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
+	 
+	var globe = new Mesh(this.gl, this.programs["default"], this.gl[this.options.renderMode], globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
+	globe.construct(this.gl);	
+
+	this.globe = new Entity(this.gl, this.programs["default"]);
+	this.globe.bindMesh(globe);
+
+	this.globe.applyCustomUniforms([
+		["colour", [50, 15, 255]],
+		["selected", false],
+		["tex", this.textures.water],		
+		["isTextured", true],
+		["offScreen", false],
+		["water", true]	
+	]);
+};
+
 
 Thomas.prototype.bindHandlers = function() {
 	window.addEventListener('resize', this.resizeEvent.bind(this), false);
@@ -792,9 +775,6 @@ Thomas.prototype.genCountries = function() {
 		country.constructBuffers(this.gl, this.programs["default"]);
 		country.constructEntity(this.gl, this.programs["default"]);
 
-
-		
-
 		this.countries["" + country_colour[0] + country_colour[1] + country_colour[2]] = country;
 	}
 };
@@ -833,14 +813,13 @@ Thomas.prototype.pickCountry = function(x, y) {
 };
 
 Thomas.prototype.resizeEvent = function() {
-   // this.setOrtho();
-	this.setProjection();
-}
+	this.setProjection(this.currentProjection);
+};
 
 Thomas.prototype.mouseUp = function(e) {
 	this.mouseState = false;
-	
-	if(e.touches == undefined) {
+
+	if(e.touches == undefined && this.dX == 0) {
 		this.pickCountry(this.mouseX, this.mouseY);
 	};
 };
@@ -861,8 +840,6 @@ Thomas.prototype.mouseDown = function(e) {
 		this.mouseX = e.clientX;
 		this.mouseY = e.clientY;
 		
-		
-
 		this.dX = 0;
 		this.dY = 0;
 		return;
@@ -870,8 +847,6 @@ Thomas.prototype.mouseDown = function(e) {
 
 	this.mouseX = e.touches[0].pageX;
 	this.mouseY = e.touches[0].pageY;
-
-
 
 	this.dX = 0;
 	this.dY = 0;
@@ -890,6 +865,8 @@ Thomas.prototype.mouseMove = function(e) {
 
 	    this.dX = dX;
 	    this.dY = dY;
+
+
 
 	    this.dX *= 2 * Math.PI / this.gl.canvas.width;
 	    this.dY *= 2 * Math.PI / this.gl.canvas.height;
@@ -932,14 +909,13 @@ Thomas.prototype.rotateEarth = function(dx, dy) {
 
 	mat4.multiply(this.globe.model, this.globeRotationMatrix, this.globe.model);
 
-	mat4.multiply(this.midPointRussia.model, this.globeRotationMatrix, this.midPointRussia.model);	
-	mat4.translate(this.midPointRussia.model, this.midPointRussia.model, [0, 0, 0]);
+	// mat4.identity(this.midPointRussia.model, this.midPointRussia.model)
 
 	for(var i in this.countries) {
 		var country = this.countries[i];
 		if(country.name == this.currentlySelectedCountry.name) {
-			mat4.multiply(this.midPointRussia.model, this.globeRotationMatrix, this.midPointRussia.model);	
-			mat4.translate(this.midPointRussia.model, this.midPointRussia.model, [country.midpoint[0], country.midpoint[1], country.midpoint[2]]);	
+			// mat4.multiply(this.midPointRussia.model, this.globeRotationMatrix, this.midPointRussia.model);	
+			// mat4.translate(this.midPointRussia.model, this.midPointRussia.model, [country.midpoint[0], country.midpoint[1], country.midpoint[2]]);	
 		};
 
 		mat4.multiply(country.entity.model, this.globeRotationMatrix, country.entity.model);	
@@ -954,21 +930,33 @@ Thomas.prototype.setCamera = function(x, y, z) {
 
 Thomas.prototype.setOrtho = function() {
 	var aspect = window.innerWidth / window.innerHeight;
-	 mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000000);
+	mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000000);
 	//mat4.ortho(this.projectionMatrix, 0, this.gl.canvas.width, this.gl.canvas.height, 0.0, -1.0, 1000000);
 };
 
-Thomas.prototype.setProjection = function(width, height) {
-
+Thomas.prototype.setPerspective = function() {
 	var aspect = window.innerWidth / window.innerHeight;
 	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 1.0, 100.0);
+};
+
+Thomas.prototype.setProjection = function(type) {
+	switch(type) {
+		case "Perspective":
+			this.setPerspective();
+			break;
+		case "Orthographic":
+			this.setOrtho();
+			break;
+		default:
+			break;
+	};
 };
 
 Thomas.prototype.loadTextures = function() {
 	var gl = this.gl;
 	this.textures = twgl.createTextures(gl, {
 		water: {
-			src: "images/new_water.jpg",
+			src: "images/sea.jpg",
 			// wrap: gl.REPEAT,
 			// mag: gl.NEAREST
 		},
@@ -1010,9 +998,12 @@ Thomas.prototype.createFramebuffer = function(name, width, height) {
 
 	this.setupTexture(emptyFramebuffer.texture, this.gl.NEAREST, this.gl.NEAREST, this.gl.CLAMP_TO_EDGE, this.gl.CLAMP_TO_EDGE, width, height);
 
+
 	this.bindFramebuffer(emptyFramebuffer.framebuffer);
-		this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, emptyFramebuffer.texture, 0);
 	this.gl.bindTexture(this.gl.TEXTURE_2D, emptyFramebuffer.texture);
+	this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, emptyFramebuffer.texture, 0);
+	
+
 
 	this.framebuffers[name] = emptyFramebuffer;
 };
@@ -1050,6 +1041,11 @@ Thomas.prototype.render = function() {
 		this.dY *= 0.95;
 	};
 
+	if(this.currentProjection != this.options.projectionType) {
+		this.currentProjection = this.options.projectionType;
+		this.resizeEvent();
+	};
+
 	this.rotateEarth(this.dX, this.dY);
 
 	this.bindFramebuffer(this.framebuffers["pick"].framebuffer);
@@ -1057,6 +1053,7 @@ Thomas.prototype.render = function() {
 
 	    for(var i in this.countries) {
 			this.countries[i].entity.setUniform("offScreen", true);
+			this.countries[i].mesh.setRenderMode(this.gl.TRIANGLES);
 			this.countries[i].entity.setCustomUniforms();
 			this.countries[i].entity.render();
 		}
@@ -1068,22 +1065,17 @@ Thomas.prototype.render = function() {
 
     for(var i in this.countries) {
 		this.countries[i].entity.setUniform("offScreen", false);
-		//this.countries[i].entity.setUniform("isTextured", false);
+		this.countries[i].entity.setUniform("isTextured", this.options.countryTextures);
+		this.countries[i].mesh.setRenderMode(this.gl[this.options.renderMode]);
 		this.countries[i].entity.setCustomUniforms();
 		this.countries[i].entity.render();
 	}
 
 	this.globe.setCustomUniforms();
+	this.globe.mesh.setRenderMode(this.gl[this.options.renderMode]);
 	this.globe.render();
 
-
-	// this.debugPlane.setCustomUniforms();
-	// this.debugPlane.render();
-	// mat4.identity(this.debugPlane.model, this.debugPlane.model);
-	// mat4.translate(this.debugPlane.model, this.debugPlane.model, [-1.0, 0.0, 0.0])
-	
-
-	this.time += 0.1;
+	this.time += 0.01;
 
 	requestAnimationFrame(this.render.bind(this));
 };
@@ -1117,9 +1109,6 @@ Thomas.prototype.setUniforms = function() {
 	};
 };
 
-Thomas.prototype.setupScene = function() {
-
-};
 
 module.exports = Thomas;
 

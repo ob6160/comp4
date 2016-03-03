@@ -706,7 +706,8 @@ Thomas.prototype.setupOptions = function() {
 	this.options = {
 		projectionType: "Perspective",
 		renderMode: "TRIANGLES",
-		countryTextures: false
+		countryTextures: false,
+		moon: true
 
 	};
 
@@ -1097,14 +1098,17 @@ Thomas.prototype.render = function() {
 	this.globe.mesh.setRenderMode(this.gl[this.options.renderMode]);
 	this.globe.render();
 
-	this.moon.setCustomUniforms();
-	this.moon.mesh.setRenderMode(this.gl[this.options.renderMode]);
-	this.moon.render();
 
+	this.moon.setCustomUniforms();
 	mat4.identity(this.moon.model, this.moon.model);
 	mat4.translate(this.moon.model, this.moon.model, [Math.cos(this.time) * 2, Math.cos(this.time), Math.sin(this.time)]);
-	mat4.rotate(this.moon.model, this.moon.model, this.time, [0.0, 1.0, 0.0]);
+	mat4.rotate(this.moon.model, this.moon.model, this.time, [0.0, 1.0, 0.0]);	
 
+	if(this.options.moon) {
+		this.moon.mesh.setRenderMode(this.gl[this.options.renderMode]);
+		this.moon.render();
+	};
+	
 
 	this.time += 0.01;
 

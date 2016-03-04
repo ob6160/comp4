@@ -652,6 +652,10 @@ function Thomas() {
 	this.camY = 0;
 	this.camZ = 10;
 
+	this.lookX = 0;
+	this.lookY = 0;
+	this.lookZ = 0;
+
 	this.rotX = 0;
 	this.rotY = 0;
 	this.rotZ = 0;
@@ -659,6 +663,8 @@ function Thomas() {
 	this.dX = 0;
 	this.dY = 0;
 	this.dZ = 0;
+
+	this.scrollDelta = 0;
 
   	this.FSIZE = 4;
 };
@@ -758,6 +764,9 @@ Thomas.prototype.bindHandlers = function() {
 	document.addEventListener('mousedown', this.mouseDown.bind(this), false);
 	document.addEventListener('mousemove', this.mouseMove.bind(this), false);
 
+	document.addEventListener('mousewheel', this.mouseWheel.bind(this), false);
+	document.addEventListener('contextmenu', this.contextHandle.bind(this), false);
+
 	document.addEventListener('touchmove', this.mouseMove.bind(this), false);
 	document.addEventListener('touchstart', this.mouseDown.bind(this), false);
 	document.addEventListener('touchend', this.touchEnd.bind(this), false);
@@ -853,6 +862,14 @@ Thomas.prototype.touchEnd = function(e) {
 
 };
 
+Thomas.prototype.mouseWheel = function(e) {
+	var delta = Math.max(-1, Math.min(1, (e.wheelDelta || -e.detail)));
+	this.scrollDelta -= delta * 0.1;
+
+
+
+};
+
 Thomas.prototype.mouseDown = function(e) {
 	this.mouseState = true;
 
@@ -872,9 +889,19 @@ Thomas.prototype.mouseDown = function(e) {
 	this.dY = 0;
 };
 
+Thomas.prototype.contextHandle = function(e) {
+	e.preventDefault();
+};
+
 Thomas.prototype.mouseMove = function(e) {
   //	e.preventDefault();
   	if(!this.mouseState) return;
+
+  	if(e.button == 2) {
+	
+  		return;
+  	};
+
   	if(e.touches == undefined) {
  		
 	  	var curX = e.clientX;
@@ -950,7 +977,7 @@ Thomas.prototype.setCamera = function(x, y, z) {
 
 Thomas.prototype.setOrtho = function() {
 	var aspect = window.innerWidth / window.innerHeight;
-	mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000000);
+	mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000);
 	//mat4.ortho(this.projectionMatrix, 0, this.gl.canvas.width, this.gl.canvas.height, 0.0, -1.0, 1000000);
 };
 
@@ -1062,6 +1089,8 @@ Thomas.prototype.render = function() {
 	if(!this.mouseState) {
 		this.dX *= 0.95;
 		this.dY *= 0.95;
+		this.scrollDelta *= 0.80;
+		this.camZ += this.scrollDelta;
 	};
 
 	if(this.currentProjection != this.options.projectionType) {
@@ -1101,8 +1130,12 @@ Thomas.prototype.render = function() {
 
 	this.moon.setCustomUniforms();
 	mat4.identity(this.moon.model, this.moon.model);
-	mat4.translate(this.moon.model, this.moon.model, [Math.cos(this.time) * 2, Math.cos(this.time), Math.sin(this.time)]);
+	mat4.translate(this.moon.model, this.moon.model, [Math.cos(this.time) * 2, Math.cos(this.time) * 2, Math.sin(this.time) * 2]);
 	mat4.rotate(this.moon.model, this.moon.model, this.time, [0.0, 1.0, 0.0]);	
+
+	this.lookX = Math.cos(this.time) * 2;
+	this.lookY = Math.cos(this.time) * 2;
+	this.lookZ = Math.sin(this.time) * 2;
 
 	if(this.options.moon) {
 		this.moon.mesh.setRenderMode(this.gl[this.options.renderMode]);
@@ -1117,7 +1150,7 @@ Thomas.prototype.render = function() {
 
 Thomas.prototype.setView = function() {
 	// mat4.lookAt(this.viewMatrix, [0, 0, this.camZ], [this.camX, this.camY, -100], [0,1,0]);
-	mat4.lookAt(this.viewMatrix, [this.camX, this.camY, this.camZ], [0, 0, 0], [0,1,0]);
+	mat4.lookAt(this.viewMatrix, [this.camX, this.camY, this.camZ], [this.lookX, this.lookY, this.lookZ], [0,1,0]);
 };
 
 Thomas.prototype.setupProgram = function(name, vs, fs) {

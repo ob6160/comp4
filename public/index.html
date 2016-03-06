@@ -90,6 +90,14 @@
 						window.options.moon = (window.options.moon == true ? false : true);
 						this.innerHTML = window.options.moon;
 					">true</button></p>
+					<p>Reset LookAt Vector: <button onclick="
+						window.options.lookAt = [0,0,0];
+						this.innerHTML = window.options.lookAt;
+					">true</button></p>
+					<p>Pick under crosshair: <button onclick="
+						window.options.pickUnderCrosshair = !window.options.pickUnderCrosshair;
+						this.innerHTML = window.options.pickUnderCrosshair;
+					">true</button></p>
 				</div>
 			</div>
 
@@ -108,6 +116,7 @@
 			uniform mat4 u_view;
 			uniform mat4 model;
 			uniform float time;
+			uniform bool hud;
 
 			varying vec3 v_normal;
 			varying vec3 v_position;
@@ -118,8 +127,12 @@
 				if(water == true) {
 					// tempPos.z += sin(tempPos.x * time) * cos(tempPos.y * time) * 1.0;
 				}
-				
-				gl_Position = u_projection * u_view * model * vec4(tempPos, 1.0);
+				if(hud) {
+					gl_Position = u_projection * model * vec4(tempPos, 1.0);
+				} else {
+					gl_Position = u_projection * u_view * model * vec4(tempPos, 1.0);
+
+				}
 				v_normal = normalize(mat3(model) * a_normal);
 
 				v_texcoord = a_texcoord;
@@ -163,6 +176,7 @@
 
 			}
 		</script>
+
 		<script src="twgl-full.js"></script>
 		<script src="bundle.js"></script>
 	</body>

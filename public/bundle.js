@@ -117,6 +117,7 @@ Country.prototype.constructEntity = function(gl, program) {
 	this.entity.applyCustomUniforms([
 		["colour", this.colour],
 		["selected", false],
+		["hud", false],
 		["isTextured", true],
 		["tex", this.texture],
 		["offScreen", false],
@@ -395,14 +396,14 @@ var twgl = window.twgl;
 var mat4 = require('gl-matrix').mat4;
 var vec3 = require('gl-matrix').vec3;
 
-function Entity(gl, programwrap) {
+function Entity(gl) {
   this.gl = gl;
 
   this.model = mat4.create();
   this.inc = 0;
 
-  this.program = programwrap.program;
-  this.programwrap = programwrap;
+  this.program = null;
+  this.programwrap = null;
 
   this.uniforms = {
     model: this.model
@@ -412,6 +413,9 @@ function Entity(gl, programwrap) {
 
 Entity.prototype.bindMesh = function(mesh) {
   this.mesh = mesh;
+
+  this.program = mesh.program;
+  this.programwrap = mesh.programWrap;
 };
 
 Entity.prototype.render = function() {
@@ -431,6 +435,7 @@ Entity.prototype.setUniform = function(uniformKey, data) {
 Entity.prototype.setCustomUniforms = function() {
   //Set uniforms
   // console.log(this.uniforms);
+  
   twgl.setUniforms(this.programwrap, this.uniforms);
 };
 
@@ -463,7 +468,7 @@ function Mesh(gl, program, renderMode, vertices, indices, normals, texcoord) {
     this.vertexComponents = vertices.numComponents || 3;
     this.vertices = vertices.data;
   }
-  
+
   
   this.vertexBuffer = null;
   this.indexBuffer = null;
@@ -492,7 +497,7 @@ function Mesh(gl, program, renderMode, vertices, indices, normals, texcoord) {
 }
 
 
-Mesh.prototype.render = function(fbotest) {
+Mesh.prototype.render = function() {
   this.gl.useProgram(this.program);
 
   this.ext.bindVertexArrayOES(this.vao);
@@ -689,18 +694,20 @@ Thomas.prototype.setup = function(canvas_id) {
 		this.setupRenderbuffer(this.renderBuffer, 1920, 1080);
 		this.unbindFramebuffer();
 
-		this.setProjection(this.currentProjection);			
-
-		this.setView();
+		this.setProjection(this.currentProjection);	
 
 		this.setupPrograms();
-		this.setUniforms();
+		this.setUniforms("default");
+
+
 		this.loadTextures();
 		this.bindHandlers();
 
 		this.setupScene();
 		
     	this.genCountries();
+
+		this.setView();
 
 		return [null, this.gl];
 	} else {
@@ -713,7 +720,9 @@ Thomas.prototype.setupOptions = function() {
 		projectionType: "Perspective",
 		renderMode: "TRIANGLES",
 		countryTextures: false,
-		moon: true
+		moon: true,
+		lookAt: vec3.create(),
+		pickUnderCrosshair: true
 
 	};
 
@@ -723,24 +732,75 @@ Thomas.prototype.setupOptions = function() {
 Thomas.prototype.setupScene = function() {
 	var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
 	var moon_vertices = twgl.primitives.createSphereVertices(0.2,100,100);
-	 
+	
+	var crosshair_vertices = {
+		position: {
+			data: [		
+				-1.0, 0.1,
+				1.0, -0.1,
+				-1.0, -0.1,
+				1.0, 0.1,
+
+				0.1, 1.0,
+				-0.1, -1.0,
+				0.1, -1.0,
+				-0.1, 1.0
+			],
+			numComponents: 2
+		},
+		indices: [
+			0,1,2,
+			0,3,1,
+			4,5,6,
+			4,7,5
+		],
+		normal: [
+			0,0,0,
+			0,0,0,
+			0,0,0,
+			0,0,0,
+			0,0,0,
+			0,0,0,
+			0,0,0,
+			0,0,0
+		]
+	};
+
 	var globe = new Mesh(this.gl, this.programs["default"], this.gl[this.options.renderMode], globe_vertices.position, globe_vertices.indices, globe_vertices.normal, globe_vertices.texcoord)
 	globe.construct(this.gl);	
 
 	var moon = new Mesh(this.gl, this.programs["default"], this.gl[this.options.renderMode], moon_vertices.position, moon_vertices.indices, moon_vertices.normal, moon_vertices.texcoord)
 	moon.construct(this.gl);	
 
-	this.globe = new Entity(this.gl, this.programs["default"]);
+	var crosshair = new Mesh(this.gl, this.programs["default"], this.gl.TRIANGLES, crosshair_vertices.position, crosshair_vertices.indices, crosshair_vertices.normal);
+	crosshair.construct(this.gl);
+
+	this.globe = new Entity(this.gl);
 	this.globe.bindMesh(globe);	
 
-	this.moon = new Entity(this.gl, this.programs["default"]);
+	this.moon = new Entity(this.gl);
 	this.moon.bindMesh(moon);
 
+	this.crosshair = new Entity(this.gl);
+	this.crosshair.bindMesh(crosshair);
+
+
 	mat4.translate(this.moon.model, this.moon.model, [2.0, 0.0, 0.0]);
+
+	this.crosshair.applyCustomUniforms([
+		["colour", [255, 255, 255]],
+		["selected", false],
+		["hud", true],
+		["tex", null],
+		["isTextured", false],
+		["offScreen", false],
+		["water", false]	
+	]);
 
 	this.globe.applyCustomUniforms([
 		["colour", [50, 15, 255]],
 		["selected", false],
+		["hud", false],
 		["tex", this.textures.water],		
 		["isTextured", true],
 		["offScreen", false],
@@ -750,10 +810,11 @@ Thomas.prototype.setupScene = function() {
 	this.moon.applyCustomUniforms([
 		["colour", [50, 15, 255]],
 		["selected", false],
+		["hud", false],
 		["tex", this.textures.moon],		
 		["isTextured", true],
 		["offScreen", false],
-		["water", true]	
+		["water", false]	
 	]);
 };
 
@@ -821,24 +882,35 @@ Thomas.prototype.genColour = function(index, offset) {
 Thomas.prototype.pickCountry = function(x, y) {
 
 	this.bindFramebuffer(this.framebuffers["pick"].framebuffer);
-		this.gl.readPixels(this.mouseX, this.gl.canvas.height - this.mouseY, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.colourPicked);
+		this.gl.readPixels(x, this.gl.canvas.height - y, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.colourPicked);
 	this.unbindFramebuffer();
 
-	this.currentlySelectedCountry = this.countries["" + this.colourPicked[0] + this.colourPicked[1] +  this.colourPicked[2]] || { name:"Narnia", continent: "Narnia"}
-
-
-	document.getElementById("country_name").textContent = this.currentlySelectedCountry.name || "Narnia";
-	document.getElementById("country_info").textContent = "Continent: " + this.currentlySelectedCountry.continent || "Narnia";
-
-	for(var i in this.countries) {
-		this.countries[i].entity.applyCustomUniforms([
-			["selected", false]		
-		]);
+	if(this.colourPicked[0] == 128 && this.colourPicked[1] == 229 && this.colourPicked[2] == 51) {
+		return;
 	}
 
- 	this.currentlySelectedCountry.entity.applyCustomUniforms([
-		["selected", true]			
-	]);
+	var newCountry = this.countries["" + this.colourPicked[0] + this.colourPicked[1] +  this.colourPicked[2]] || { name: "Narnia" };
+
+	if(newCountry.name != this.currentlySelectedCountry.name) {
+		this.currentlySelectedCountry = newCountry;
+		document.getElementById("country_name").textContent = this.currentlySelectedCountry.name;
+		document.getElementById("country_info").textContent = "Continent: " + this.currentlySelectedCountry.continent;
+
+		for(var i in this.countries) {
+			this.countries[i].entity.applyCustomUniforms([
+				["selected", false]		
+			]);
+		};
+
+		if(this.currentlySelectedCountry.entity) {
+			this.currentlySelectedCountry.entity.applyCustomUniforms([
+				["selected", true]			
+			]);	
+		} else {
+			document.getElementById("country_name").textContent = "Narnia";
+			document.getElementById("country_info").textContent = "LOL";
+		}
+	}
 };
 
 Thomas.prototype.resizeEvent = function() {
@@ -896,9 +968,21 @@ Thomas.prototype.contextHandle = function(e) {
 Thomas.prototype.mouseMove = function(e) {
   //	e.preventDefault();
   	if(!this.mouseState) return;
-
+  		
   	if(e.button == 2) {
-	
+  		var curX = e.clientX;
+	    var curY = e.clientY;
+
+	    var dX = curX - this.mouseX;
+	    var dY = curY - this.mouseY;
+
+	    dX *= -2 * Math.PI / this.gl.canvas.width;
+	    dY *= 2 * Math.PI / this.gl.canvas.height;
+		this.options.lookAt[0] += dX;
+		this.options.lookAt[1] += dY;
+
+		this.mouseX = curX;
+	    this.mouseY = curY;
   		return;
   	};
 
@@ -976,12 +1060,14 @@ Thomas.prototype.setCamera = function(x, y, z) {
 };
 
 Thomas.prototype.setOrtho = function() {
+	this.currentProjection = "Orthographic";
 	var aspect = window.innerWidth / window.innerHeight;
 	mat4.ortho(this.projectionMatrix, -aspect, aspect, -1.0, 1.0, -1.0, 1000);
 	//mat4.ortho(this.projectionMatrix, 0, this.gl.canvas.width, this.gl.canvas.height, 0.0, -1.0, 1000000);
 };
 
 Thomas.prototype.setPerspective = function() {
+	this.currentProjection = "Perspective";
 	var aspect = window.innerWidth / window.innerHeight;
 	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 1.0, 100.0);
 };
@@ -997,6 +1083,7 @@ Thomas.prototype.setProjection = function(type) {
 		default:
 			break;
 	};
+
 };
 
 Thomas.prototype.loadTextures = function() {
@@ -1023,7 +1110,7 @@ Thomas.prototype.clearContext = function() {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
 	this.setView();
-    this.setUniforms();
+    this.setUniforms("default");
 };
 
 Thomas.prototype.setupTexture = function(textureref, mag, min, wraps, wrapt, width, height) {
@@ -1082,7 +1169,14 @@ Thomas.prototype.setupRenderbuffer = function(renderbuffer, width, height) {
 
 
 Thomas.prototype.setupPrograms = function() {
-	this.setupProgram("default", "vs-default", "fs-default");
+	this.setupProgram("default", "vs-default", "fs-default", {
+		u_projection: this.projectionMatrix,
+		time: this.time,
+		u_view: this.viewMatrix
+	});
+	// this.setupProgram("gui", "vs-gui", "fs-gui", {
+	// 	u_projectiono: this.projectionMatrix,
+	// });
 };
 
 Thomas.prototype.render = function() {
@@ -1093,10 +1187,15 @@ Thomas.prototype.render = function() {
 		this.camZ += this.scrollDelta;
 	};
 
+	if(this.options.pickUnderCrosshair) {
+		this.pickCountry(this.gl.canvas.width / 2, this.gl.canvas.height / 2);
+	}
+
 	if(this.currentProjection != this.options.projectionType) {
 		this.currentProjection = this.options.projectionType;
 		this.resizeEvent();
 	};
+
 
 	this.rotateEarth(this.dX, this.dY);
 
@@ -1127,54 +1226,47 @@ Thomas.prototype.render = function() {
 	this.globe.mesh.setRenderMode(this.gl[this.options.renderMode]);
 	this.globe.render();
 
-
 	this.moon.setCustomUniforms();
 	mat4.identity(this.moon.model, this.moon.model);
 	mat4.translate(this.moon.model, this.moon.model, [Math.cos(this.time) * 2, Math.cos(this.time) * 2, Math.sin(this.time) * 2]);
 	mat4.rotate(this.moon.model, this.moon.model, this.time, [0.0, 1.0, 0.0]);	
-
-	this.lookX = Math.cos(this.time) * 2;
-	this.lookY = Math.cos(this.time) * 2;
-	this.lookZ = Math.sin(this.time) * 2;
 
 	if(this.options.moon) {
 		this.moon.mesh.setRenderMode(this.gl[this.options.renderMode]);
 		this.moon.render();
 	};
 	
+	this.setProjection("Orthographic");
+	
+	mat4.identity(this.crosshair.model, this.crosshair.model);
+	var crossScale = 0.01;
+	mat4.translate(this.crosshair.model, this.crosshair.model, [0, 0, -1])
+	mat4.scale(this.crosshair.model, this.crosshair.model, [crossScale, crossScale, crossScale]);
 
+	this.crosshair.setCustomUniforms();
+	this.crosshair.render();
+	
+	
 	this.time += 0.01;
 
 	requestAnimationFrame(this.render.bind(this));
 };
 
-Thomas.prototype.setView = function() {
-	// mat4.lookAt(this.viewMatrix, [0, 0, this.camZ], [this.camX, this.camY, -100], [0,1,0]);
-	mat4.lookAt(this.viewMatrix, [this.camX, this.camY, this.camZ], [this.lookX, this.lookY, this.lookZ], [0,1,0]);
+Thomas.prototype.setView = function(program) {
+	mat4.lookAt(this.viewMatrix, [this.camX, this.camY, this.camZ], this.options.lookAt, [0,1,0]);
+	
+
 };
 
-Thomas.prototype.setupProgram = function(name, vs, fs) {
+Thomas.prototype.setupProgram = function(name, vs, fs, uniforms) {
 	this.programs[name] = twgl.createProgramInfo(this.gl, [vs, fs]);
+	this.programs[name].uniforms = uniforms;
 };
 
-Thomas.prototype.resizeScreen = function(w, h) {
+Thomas.prototype.setUniforms = function(programName) {
+	var program = this.programs[programName];
 
-};
-
-Thomas.prototype.setUniforms = function() {
-	for(var prog in this.programs) {
-		var program = this.programs[prog].program;
-		this.gl.useProgram(program);
-
-		var u_projection = this.gl.getUniformLocation(program, 'u_projection');
-		this.gl.uniformMatrix4fv(u_projection, false, this.projectionMatrix);
-
-		var u_view = this.gl.getUniformLocation(program, 'u_view');
-		this.gl.uniformMatrix4fv(u_view, false, this.viewMatrix);
-
-		var time = this.gl.getUniformLocation(program, 'time');
-		this.gl.uniform1f(time, this.time)
-	};
+	twgl.setUniforms(program, program.uniforms);
 };
 
 

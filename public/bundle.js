@@ -57,7 +57,7 @@ Country.prototype.constructBuffers = function(gl, program) {
 	 	var triangulated = Util.triangulatePoint(x, y);
 
 		this.mesh.addVertex(triangulated[0], triangulated[1], triangulated[2]);
-		this.mesh.addNormal(0,1,0);
+		this.mesh.addNormal(triangulated[0],triangulated[1],triangulated[2]);
 		
 		this.mesh.addTexcoord(Math.abs((x-highX)/Math.abs(highX-lowX)), Math.abs((y-highY)/Math.abs(highY-lowY)));
 	};
@@ -121,7 +121,8 @@ Country.prototype.constructEntity = function(gl, program) {
 		["isTextured", true],
 		["tex", this.texture],
 		["offScreen", false],
-		["water", false]	
+		["water", false],
+		["lit", true]
 	]);
 };
 
@@ -682,6 +683,8 @@ Thomas.prototype.setup = function(canvas_id) {
 		
 		this.gl.enable(this.gl.BLEND);
     	this.gl.enable(this.gl.DEPTH_TEST);
+		this.gl.enable(this.gl.CULL_FACE);
+		this.gl.cullFace(this.gl.BACK)
 
 		this.renderBuffer = this.gl.createRenderbuffer();
 
@@ -722,7 +725,8 @@ Thomas.prototype.setupOptions = function() {
 		countryTextures: false,
 		moon: true,
 		lookAt: vec3.create(),
-		pickUnderCrosshair: true
+		pickUnderCrosshair: false,
+		backfaceCulling: false
 
 	};
 
@@ -731,7 +735,7 @@ Thomas.prototype.setupOptions = function() {
 
 Thomas.prototype.setupScene = function() {
 	var globe_vertices = twgl.primitives.createSphereVertices(0.99,100,100);
-	var moon_vertices = twgl.primitives.createSphereVertices(0.2,100,100);
+	var moon_vertices = twgl.primitives.createSphereVertices(0.2,26,26);
 	
 	var crosshair_vertices = {
 		position: {
@@ -794,7 +798,8 @@ Thomas.prototype.setupScene = function() {
 		["tex", null],
 		["isTextured", false],
 		["offScreen", false],
-		["water", false]	
+		["water", false],
+		["lit", false]	
 	]);
 
 	this.globe.applyCustomUniforms([
@@ -804,7 +809,8 @@ Thomas.prototype.setupScene = function() {
 		["tex", this.textures.water],		
 		["isTextured", true],
 		["offScreen", false],
-		["water", true]	
+		["water", true],
+		["lit", true]
 	]);
 
 	this.moon.applyCustomUniforms([
@@ -814,7 +820,8 @@ Thomas.prototype.setupScene = function() {
 		["tex", this.textures.moon],		
 		["isTextured", true],
 		["offScreen", false],
-		["water", false]	
+		["water", false],
+		["lit", true]	
 	]);
 };
 
@@ -857,9 +864,9 @@ Thomas.prototype.genCountries = function() {
 		
 		var country = new Country(country_data[i], i, country_colour);
 		
-		// country.texture = twgl.createTexture(this.gl, {
-		// 	src: "/images/flags/" + country_code_data(country.name).toLowerCase() + ".png"
-		// }, function() {});
+		//country.texture = twgl.createTexture(this.gl, {
+		//	src: "/images/flags/" + country_code_data(country.name).toLowerCase() + ".png"
+		//}, function() {});
 		country.texture = this.textures.terrain;
 
 		country.constructBuffers(this.gl, this.programs["default"]);
@@ -908,7 +915,7 @@ Thomas.prototype.pickCountry = function(x, y) {
 			]);	
 		} else {
 			document.getElementById("country_name").textContent = "Narnia";
-			document.getElementById("country_info").textContent = "LOL";
+			document.getElementById("country_info").textContent = "Narnia";
 		}
 	}
 };
@@ -1069,7 +1076,7 @@ Thomas.prototype.setOrtho = function() {
 Thomas.prototype.setPerspective = function() {
 	this.currentProjection = "Perspective";
 	var aspect = window.innerWidth / window.innerHeight;
-	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 1.0, 100.0);
+	mat4.perspective(this.projectionMatrix, 30 * Math.PI / 180, aspect, 0.1, 100.0);
 };
 
 Thomas.prototype.setProjection = function(type) {
@@ -1189,7 +1196,14 @@ Thomas.prototype.render = function() {
 
 	if(this.options.pickUnderCrosshair) {
 		this.pickCountry(this.gl.canvas.width / 2, this.gl.canvas.height / 2);
-	}
+	};
+
+	if(this.options.backfaceCulling) {
+		this.gl.enable(this.gl.CULL_FACE);
+		this.gl.cullFace(this.gl.BACK)
+	} else {
+		this.gl.disable(this.gl.CULL_FACE);
+	};
 
 	if(this.currentProjection != this.options.projectionType) {
 		this.currentProjection = this.options.projectionType;
@@ -1239,8 +1253,8 @@ Thomas.prototype.render = function() {
 	this.setProjection("Orthographic");
 	
 	mat4.identity(this.crosshair.model, this.crosshair.model);
-	var crossScale = 0.01;
-	mat4.translate(this.crosshair.model, this.crosshair.model, [0, 0, -1])
+	var crossScale = 0.001;
+	mat4.translate(this.crosshair.model, this.crosshair.model, [0, 0, -0.1])
 	mat4.scale(this.crosshair.model, this.crosshair.model, [crossScale, crossScale, crossScale]);
 
 	this.crosshair.setCustomUniforms();

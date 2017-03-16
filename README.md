@@ -1,6 +1,6 @@
-#AQA COMP4 Project
+# My AQA COMP4 Project
 
-##Getting there.
+## Getting there.
 Check it out at: [barno.org/comp4](https://barno.org/comp4)
 
 
